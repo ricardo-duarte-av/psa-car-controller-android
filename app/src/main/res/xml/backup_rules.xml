@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup rules for API 29-30 (data_extraction_rules.xml covers API 31+; keep them in sync).
+  The credential store is EncryptedSharedPreferences whose Keystore master key is not backed up:
+  restoring the file onto another device leaves it undecryptable and would crash startup, so it is
+  excluded and the user simply reconnects.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="psacc_credentials.xml" />
+</full-backup-content>

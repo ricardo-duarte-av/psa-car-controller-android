@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PSA Car Controller is a self-hosted Flask app that listens on plain HTTP (port 5000) unless it is
+  put behind a TLS reverse proxy. Android's network-security-config can't scope cleartext to private
+  IP ranges, so cleartext is permitted generally; TLS is still used whenever the entered URL is https.
+  Note that HTTP basic-auth credentials travel in the clear over http — the connect screen warns
+  about it.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
