@@ -99,15 +99,14 @@ fun StatTile(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (supporting != null) {
-                    Text(
-                        text = supporting,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                // Always laid out (blank when absent) so tiles in the grid share one height.
+                Text(
+                    text = supporting.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

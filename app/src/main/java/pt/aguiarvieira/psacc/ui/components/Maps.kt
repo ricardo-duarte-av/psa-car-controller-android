@@ -150,7 +150,7 @@ fun TripRouteMap(
                     endCap = RoundCap(),
                 )
             }
-            StartMarker(points.first())
+            if (points.size >= 2 && points.first() != points.last()) StartMarker(points.first())
             DestinationMarker(points.last())
         }
     }

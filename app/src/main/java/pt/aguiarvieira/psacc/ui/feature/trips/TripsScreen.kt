@@ -196,7 +196,7 @@ private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) 
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (trip.route.size >= 2) {
+            if (trip.hasRoute) {
                 RouteSketch(
                     route = trip.route,
                     modifier = Modifier.size(56.dp),
@@ -258,6 +258,7 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
                     .aspectRatio(1.4f)
                     .clip(MaterialTheme.shapes.extraLarge),
             )
+            if (!trip.hasRoute) NoRouteNote()
             if (fullScreenMap) {
                 val end = trip.route.last()
                 FullScreenMapDialog(
@@ -268,7 +269,7 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
                     TripRouteMap(route = trip.route, interactive = true, modifier = mapModifier)
                 }
             }
-        } else if (trip.route.size >= 2) {
+        } else if (trip.hasRoute) {
             Card(
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -320,6 +321,16 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
         }
         Spacer(Modifier.size(16.dp))
     }
+}
+
+@Composable
+private fun NoRouteNote() {
+    Text(
+        text = "No route recorded: the car kept reporting the same GPS position during this trip, " +
+            "so only its last known location is shown.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /**

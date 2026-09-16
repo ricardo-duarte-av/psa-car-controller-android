@@ -1,9 +1,12 @@
 package pt.aguiarvieira.psacc.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
+import pt.aguiarvieira.psacc.domain.model.LatLng
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.ui.feature.charging.ChargingViewModel
 import pt.aguiarvieira.psacc.ui.feature.trips.TripsViewModel
@@ -33,6 +36,15 @@ class SummariesTest {
 
         val days = TripsViewModel.groupByDay(trips, ZoneOffset.UTC)
         assertEquals(listOf(2, 1), days.map { it.trips.size })
+    }
+
+    @Test
+    fun `trip has a route only with two distinct points`() {
+        val base = trip(1, "2026-09-16T08:00:00Z", 3.0, null)
+        val parked = LatLng(41.227997, -8.583825)
+        assertFalse(base.copy(route = emptyList()).hasRoute)
+        assertFalse(base.copy(route = List(4) { parked }).hasRoute)
+        assertTrue(base.copy(route = listOf(parked, LatLng(41.2290, -8.5850))).hasRoute)
     }
 
     @Test

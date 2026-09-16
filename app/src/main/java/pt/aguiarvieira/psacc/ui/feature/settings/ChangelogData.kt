@@ -21,6 +21,15 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.2",
+        date = "16/09/2026",
+        changes = listOf(
+            "Trips where the car didn't report any GPS movement now say no route was recorded, " +
+                "instead of showing an empty map.",
+            "The tiles in the Car tab's Status section are now all the same size.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.1",
         date = "16/09/2026",
         changes = listOf(

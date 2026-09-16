@@ -18,6 +18,13 @@ data class Trip(
     val route: List<LatLng>,
 ) {
     val endAt: Instant? get() = if (startAt != null && duration != null) startAt.plus(duration) else null
+
+    /**
+     * True when the GPS trace has at least two distinct points (~1 m apart). PSA sometimes keeps
+     * reporting a stale position while the car drives, giving a trip whose samples all coincide.
+     */
+    val hasRoute: Boolean
+        get() = route.distinctBy { (it.latitude * 1e5).toLong() to (it.longitude * 1e5).toLong() }.size >= 2
 }
 
 data class LatLng(val latitude: Double, val longitude: Double)
