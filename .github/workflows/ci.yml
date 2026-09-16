@@ -87,6 +87,8 @@ jobs:
           fi
 
       - name: Build debug APK
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Build release APK + AAB
@@ -97,6 +99,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace
 
       - name: Upload debug APK

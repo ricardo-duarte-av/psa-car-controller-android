@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,14 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+// Google Maps key: `MAPS_API_KEY=...` in local.properties (local builds) or the MAPS_API_KEY env var
+// (CI secret). Never committed. Without one the app still builds and falls back to map-less views.
+val mapsApiKey: String = run {
+    val props = Properties()
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { stream -> props.load(stream) }
+    (props.getProperty("MAPS_API_KEY") ?: System.getenv("MAPS_API_KEY")).orEmpty().trim()
 }
 
 android {
@@ -15,11 +25,14 @@ android {
         applicationId = "pt.aguiarvieira.psacc"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
+        buildConfigField("boolean", "HAS_MAPS_KEY", mapsApiKey.isNotEmpty().toString())
     }
 
     // Release signing driven by CI env vars. When KEYSTORE_FILE is unset (local dev, PRs
@@ -112,6 +125,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+
+    // Google Maps
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
 
     // Test
     testImplementation(libs.junit)

@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -65,6 +66,9 @@ import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.ui.components.ContentState
 import pt.aguiarvieira.psacc.ui.components.ErrorState
+import pt.aguiarvieira.psacc.ui.components.FullScreenMapDialog
+import pt.aguiarvieira.psacc.ui.components.TripRouteMap
+import pt.aguiarvieira.psacc.ui.components.mapsAvailable
 import pt.aguiarvieira.psacc.ui.components.FullScreenLoading
 import pt.aguiarvieira.psacc.ui.components.MessageState
 import pt.aguiarvieira.psacc.ui.components.SectionHeader
@@ -244,7 +248,27 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
             style = MaterialTheme.typography.displaySmallEmphasized,
             color = MaterialTheme.colorScheme.primary,
         )
-        if (trip.route.size >= 2) {
+        var fullScreenMap by rememberSaveable { mutableStateOf(false) }
+        if (mapsAvailable && trip.route.isNotEmpty()) {
+            TripRouteMap(
+                route = trip.route,
+                onClick = { fullScreenMap = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.4f)
+                    .clip(MaterialTheme.shapes.extraLarge),
+            )
+            if (fullScreenMap) {
+                val end = trip.route.last()
+                FullScreenMapDialog(
+                    title = Formatters.dateTime(trip.startAt),
+                    onDismiss = { fullScreenMap = false },
+                    onOpenExternal = { openInMaps(context, end.latitude, end.longitude, label = "Trip end") },
+                ) { mapModifier ->
+                    TripRouteMap(route = trip.route, interactive = true, modifier = mapModifier)
+                }
+            }
+        } else if (trip.route.size >= 2) {
             Card(
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),

@@ -18,6 +18,19 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
     ChangelogVersion(
         version = null,
         date = null,
+        changes = emptyList(),
+    ),
+    ChangelogVersion(
+        version = "0.1.1",
+        date = "16/09/2026",
+        changes = listOf(
+            "Maps: the car's location and each trip's route are now shown on a Google map. Tap a " +
+                "map to open it full screen.",
+        ),
+    ),
+    ChangelogVersion(
+        version = "0.1.0",
+        date = "16/09/2026",
         changes = listOf(
             "First version: connect to your PSA Car Controller server with its address and HTTP login.",
             "Car dashboard with battery and fuel levels, range, charging state, odometer, " +

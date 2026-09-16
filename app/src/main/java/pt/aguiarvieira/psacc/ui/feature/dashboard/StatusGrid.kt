@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,8 +37,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -47,9 +52,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import pt.aguiarvieira.psacc.domain.model.DoorLockState
+import pt.aguiarvieira.psacc.domain.model.LatLng
 import pt.aguiarvieira.psacc.domain.model.VehiclePosition
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
+import pt.aguiarvieira.psacc.ui.components.CarLocationMap
+import pt.aguiarvieira.psacc.ui.components.FullScreenMapDialog
 import pt.aguiarvieira.psacc.ui.components.ShapedIcon
+import pt.aguiarvieira.psacc.ui.components.mapsAvailable
 import pt.aguiarvieira.psacc.ui.components.StatTile
 import pt.aguiarvieira.psacc.util.Formatters
 import java.util.Locale
@@ -159,21 +168,36 @@ fun LocationCard(position: VehiclePosition, modifier: Modifier = Modifier) {
     val address by produceState<String?>(null, position.latitude, position.longitude) {
         value = reverseGeocode(context, position.latitude, position.longitude)
     }
+    var fullScreen by rememberSaveable { mutableStateOf(false) }
+    val latLng = LatLng(position.latitude, position.longitude)
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
+        if (mapsAvailable) {
+            CarLocationMap(
+                position = latLng,
+                onClick = { fullScreen = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = 8.dp)
+                    .clip(MaterialTheme.shapes.large),
+            )
+        }
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row {
-                ShapedIcon(
-                    icon = Icons.Filled.LocationOn,
-                    shape = MaterialShapes.Ghostish.toShape(),
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    contentColor = MaterialTheme.colorScheme.onSecondary,
-                    size = 48.dp,
-                )
-                Spacer(Modifier.width(16.dp))
+                if (!mapsAvailable) {
+                    ShapedIcon(
+                        icon = Icons.Filled.LocationOn,
+                        shape = MaterialShapes.Ghostish.toShape(),
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary,
+                        size = 48.dp,
+                    )
+                    Spacer(Modifier.width(16.dp))
+                }
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = address ?: "%.5f, %.5f".format(Locale.US, position.latitude, position.longitude),
@@ -201,6 +225,16 @@ fun LocationCard(position: VehiclePosition, modifier: Modifier = Modifier) {
                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                 Text("Open in Maps")
             }
+        }
+    }
+
+    if (fullScreen) {
+        FullScreenMapDialog(
+            title = address ?: "Car location",
+            onDismiss = { fullScreen = false },
+            onOpenExternal = { openInMaps(context, position.latitude, position.longitude) },
+        ) { mapModifier ->
+            CarLocationMap(position = latLng, interactive = true, modifier = mapModifier)
         }
     }
 }
