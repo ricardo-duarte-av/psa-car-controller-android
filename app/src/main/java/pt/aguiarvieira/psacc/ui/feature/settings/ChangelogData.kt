@@ -21,6 +21,16 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.3",
+        date = "16/09/2026",
+        changes = listOf(
+            "Notifications: turn on background checks in Settings to be notified about new trips, " +
+                "the car being started or turned off, charging starting, finishing or stopping, plugging " +
+                "in or unplugging, and recorded charging sessions. Each kind can be switched off, and " +
+                "tapping a notification opens the matching tab.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.2",
         date = "16/09/2026",
         changes = listOf(

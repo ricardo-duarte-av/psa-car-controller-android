@@ -1,5 +1,6 @@
 package pt.aguiarvieira.psacc
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,6 +35,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Only on a fresh launch: after a config change the intent is the same and was already handled.
+        if (savedInstanceState == null) handleIntent(intent)
         setContent {
             PsaccTheme {
                 val startState by appViewModel.startState.collectAsStateWithLifecycle()
@@ -44,6 +47,13 @@ class MainActivity : ComponentActivity() {
                 } else {
                     val navController = rememberNavController()
                     val config by appViewModel.config.collectAsStateWithLifecycle()
+                    val requestedTab by appViewModel.requestedTab.collectAsStateWithLifecycle()
+                    // A notification tap while e.g. Settings is open: return to the tabs first.
+                    LaunchedEffect(requestedTab) {
+                        if (requestedTab != null && config != null) {
+                            navController.popBackStack(Routes.Home, inclusive = false)
+                        }
+                    }
                     // Disconnected from Settings → back to onboarding with a clean back stack.
                     LaunchedEffect(config, startState) {
                         if (config == null && navController.currentDestination?.hasRoute(Routes.Connect::class) == false) {
@@ -55,9 +65,28 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(
                         startAtHome = startState == StartState.Home,
                         navController = navController,
+                        requestedTab = requestedTab,
+                        onRequestedTabShown = appViewModel::consumeRequestedTab,
                     )
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_OPEN_TAB)?.let(appViewModel::requestTab)
+    }
+
+    companion object {
+        const val EXTRA_OPEN_TAB = "pt.aguiarvieira.psacc.OPEN_TAB"
+        const val TAB_CAR = "CAR"
+        const val TAB_TRIPS = "TRIPS"
+        const val TAB_CHARGING = "CHARGING"
     }
 }

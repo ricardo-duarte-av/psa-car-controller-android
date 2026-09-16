@@ -3,6 +3,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Background checks post notifications for new trips / ignition / charging changes (Android 13+
+         runtime permission, requested when the user turns notifications on in Settings). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!--
       Android 17 (API 37) gates access to local/private network addresses behind this runtime
       permission. PSA Car Controller is frequently self-hosted on the LAN, so the app requests it

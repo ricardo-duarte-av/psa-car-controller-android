@@ -34,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,10 +64,19 @@ enum class HomeTab(val label: String, val selectedIcon: ImageVector, val icon: I
 @Composable
 fun HomeShell(
     onOpenSettings: () -> Unit,
+    requestedTab: String? = null,
+    onRequestedTabShown: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.CAR) }
+    // Tab names match MainActivity.TAB_* (the extras notifications carry).
+    LaunchedEffect(requestedTab) {
+        requestedTab?.let { name ->
+            HomeTab.entries.firstOrNull { it.name == name }?.let { selectedTab = it }
+            onRequestedTabShown()
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
 
     NavigationSuiteScaffold(

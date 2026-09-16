@@ -1,5 +1,27 @@
 package pt.aguiarvieira.psacc.ui.feature.settings
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Switch
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.core.content.ContextCompat
+import pt.aguiarvieira.psacc.notifications.LastCheck
+import pt.aguiarvieira.psacc.notifications.NotificationCategory
+import pt.aguiarvieira.psacc.notifications.NotificationSettings
+import java.time.Instant
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,6 +56,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -140,6 +164,17 @@ fun SettingsScreen(
                 )
 
                 HorizontalDivider()
+                NotificationsSection(
+                    settings = state.notifications,
+                    lastCheck = state.lastCheck,
+                    canPost = viewModel::canPostNotifications,
+                    onEnabledChange = viewModel::setNotificationsEnabled,
+                    onIntervalChange = viewModel::setInterval,
+                    onCategoryChange = viewModel::setCategoryEnabled,
+                    onCheckNow = viewModel::checkNow,
+                )
+
+                HorizontalDivider()
                 // Changelog and About are always the last two entries (changelog first).
                 SettingsRow(Icons.Filled.History, "Changelog", "What's new in each version", onClick = onOpenChangelog, chevron = true)
                 SettingsRow(Icons.Filled.Info, "About", "Version and source code", onClick = onOpenAbout, chevron = true)
@@ -195,5 +230,132 @@ private fun SettingsRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (chevron) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NotificationsSection(
+    settings: NotificationSettings,
+    lastCheck: LastCheck?,
+    canPost: () -> Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    onIntervalChange: (Int) -> Unit,
+    onCategoryChange: (NotificationCategory, Boolean) -> Unit,
+    onCheckNow: () -> Unit,
+) {
+    val context = LocalContext.current
+    // Re-checked on every resume, e.g. when returning from the system notification settings.
+    var canPostNow by remember { mutableStateOf(canPost()) }
+    LifecycleResumeEffect(Unit) {
+        canPostNow = canPost()
+        onPauseOrDispose { }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        canPostNow = canPost()
+        if (granted) {
+            onEnabledChange(true)
+        } else {
+            Toast.makeText(context, "Notifications permission denied", Toast.LENGTH_LONG).show()
+        }
+    }
+    val blocked = settings.enabled && !canPostNow
+
+    SectionTitle("Notifications")
+    SwitchRow(
+        title = "Background checks",
+        subtitle = "Check the server periodically and notify about new trips, ignition and charging",
+        checked = settings.enabled,
+        onCheckedChange = { enabled ->
+            val needsPermission = enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            if (needsPermission) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                onEnabledChange(enabled)
+            }
+        },
+    )
+
+    if (blocked) {
+        SettingsRow(
+            icon = Icons.Filled.NotificationsOff,
+            title = "Notifications are blocked",
+            subtitle = "Tap to allow them in system settings",
+            tint = MaterialTheme.colorScheme.error,
+            onClick = {
+                context.startActivity(
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                )
+            },
+        )
+    }
+
+    if (settings.enabled) {
+        Text("Check every", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NotificationSettings.INTERVAL_OPTIONS.forEach { minutes ->
+                FilterChip(
+                    selected = settings.intervalMinutes == minutes,
+                    onClick = { onIntervalChange(minutes) },
+                    label = { Text(if (minutes < 60) "$minutes min" else "${minutes / 60} h") },
+                )
+            }
+        }
+        Text(
+            text = "Android may delay checks to save battery, so notifications can arrive later than " +
+                "this, and short changes between checks (a quick drive) may be missed. Checks read " +
+                "PSA Car Controller's saved data and don't use your PSA API quota.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        NotificationCategory.entries.forEach { category ->
+            SwitchRow(
+                title = category.title,
+                subtitle = category.description,
+                checked = settings.allows(category),
+                onCheckedChange = { onCategoryChange(category, it) },
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Last check", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = when {
+                        lastCheck == null -> "Not yet"
+                        lastCheck.error != null ->
+                            "${Formatters.relative(Instant.ofEpochMilli(lastCheck.atMillis))} · ${lastCheck.error}"
+                        else -> Formatters.relative(Instant.ofEpochMilli(lastCheck.atMillis))
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (lastCheck?.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onCheckNow) {
+                Icon(Icons.Filled.Refresh, contentDescription = null)
+                Text("Check now", modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
     }
 }

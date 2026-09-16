@@ -14,12 +14,20 @@ import pt.aguiarvieira.psacc.data.repository.VehicleRepository
 import pt.aguiarvieira.psacc.data.settings.AppPreferences
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Vehicle
+import pt.aguiarvieira.psacc.notifications.LastCheck
+import pt.aguiarvieira.psacc.notifications.NotificationCategory
+import pt.aguiarvieira.psacc.notifications.NotificationScheduler
+import pt.aguiarvieira.psacc.notifications.NotificationSettings
+import pt.aguiarvieira.psacc.notifications.VehicleNotifier
+import pt.aguiarvieira.psacc.notifications.WatchStore
 import javax.inject.Inject
 
 data class SettingsUiState(
     val config: ServerConfig? = null,
     val vehicles: List<Vehicle> = emptyList(),
     val serverSettings: ServerSettings = ServerSettings.Default,
+    val notifications: NotificationSettings = NotificationSettings(),
+    val lastCheck: LastCheck? = null,
 )
 
 @HiltViewModel
@@ -27,14 +35,41 @@ class SettingsViewModel @Inject constructor(
     private val connection: ConnectionRepository,
     private val repository: VehicleRepository,
     private val preferences: AppPreferences,
+    private val scheduler: NotificationScheduler,
+    private val watchStore: WatchStore,
+    private val notifier: VehicleNotifier,
 ) : ViewModel() {
 
     val state: StateFlow<SettingsUiState> = combine(
         connection.config,
         repository.vehicles,
         repository.serverSettings,
-    ) { config, vehicles, settings -> SettingsUiState(config, vehicles, settings) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState(connection.config.value))
+        preferences.notificationSettings,
+        preferences.lastCheck,
+    ) { config, vehicles, settings, notifications, lastCheck ->
+        SettingsUiState(config, vehicles, settings, notifications, lastCheck)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState(connection.config.value))
+
+    /** Whether the system currently lets the app post (permission granted and not blocked). */
+    fun canPostNotifications(): Boolean = notifier.canPost()
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferences.setNotificationsEnabled(enabled)
+            // Establish the baseline straight away, so the first periodic run can already notify.
+            if (enabled) scheduler.checkNow()
+        }
+    }
+
+    fun setInterval(minutes: Int) {
+        viewModelScope.launch { preferences.setNotificationInterval(minutes) }
+    }
+
+    fun setCategoryEnabled(category: NotificationCategory, enabled: Boolean) {
+        viewModelScope.launch { preferences.setCategoryEnabled(category, enabled) }
+    }
+
+    fun checkNow() = scheduler.checkNow()
 
     init {
         viewModelScope.launch { repository.refreshServerSettings() }
@@ -44,6 +79,9 @@ class SettingsViewModel @Inject constructor(
     fun disconnect() {
         viewModelScope.launch {
             preferences.setSelectedVin(null)
+            // A different server may have different cars/history: start the watch from scratch.
+            watchStore.clear()
+            preferences.clearLastCheck()
             repository.clear()
             connection.disconnect()
         }

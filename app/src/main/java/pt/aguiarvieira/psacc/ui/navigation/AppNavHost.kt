@@ -14,6 +14,8 @@ import pt.aguiarvieira.psacc.ui.feature.settings.SettingsScreen
 fun AppNavHost(
     startAtHome: Boolean,
     navController: NavHostController,
+    requestedTab: String? = null,
+    onRequestedTabShown: () -> Unit = {},
 ) {
     NavHost(
         navController = navController,
@@ -30,7 +32,11 @@ fun AppNavHost(
         }
 
         composable<Routes.Home> {
-            HomeShell(onOpenSettings = { navController.navigateSingleTop(Routes.Settings) })
+            HomeShell(
+                onOpenSettings = { navController.navigateSingleTop(Routes.Settings) },
+                requestedTab = requestedTab,
+                onRequestedTabShown = onRequestedTabShown,
+            )
         }
 
         composable<Routes.Settings> {

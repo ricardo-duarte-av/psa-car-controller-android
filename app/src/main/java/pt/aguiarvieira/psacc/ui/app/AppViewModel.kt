@@ -22,6 +22,18 @@ class AppViewModel @Inject constructor(
     private val _startState = MutableStateFlow<StartState>(StartState.Loading)
     val startState: StateFlow<StartState> = _startState.asStateFlow()
 
+    /** Tab a notification asked to open; consumed by the home shell once shown. */
+    private val _requestedTab = MutableStateFlow<String?>(null)
+    val requestedTab: StateFlow<String?> = _requestedTab.asStateFlow()
+
+    fun requestTab(tab: String) {
+        _requestedTab.value = tab
+    }
+
+    fun consumeRequestedTab() {
+        _requestedTab.value = null
+    }
+
     init {
         viewModelScope.launch {
             connection.restore()
