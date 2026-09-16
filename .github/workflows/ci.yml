@@ -39,6 +39,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default installs the legacy "tools" package, which newer runner
+          # images (cmdline-tools 16.0) no longer provide, failing the step. The next step
+          # installs platform-tools + SDK 37 itself, so install nothing here.
+          packages: ''
 
       - name: Install Android SDK 37 (matching local cmdline-tools build)
         run: |
