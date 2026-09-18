@@ -21,6 +21,18 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.6",
+        date = "18/09/2026",
+        changes = listOf(
+            "Trips now come from PSA itself where the server offers them: many more trips, for " +
+                "every car rather than just the first, each with the battery and fuel level before " +
+                "and after, top speed, and the start and end locations when the car reports them.",
+            "The Car tab shows when the next service is due.",
+            "Lock and unlock are now greyed out on cars that never report their doors to PSA, " +
+                "instead of failing when you press them.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.5",
         date = "18/09/2026",
         changes = listOf(

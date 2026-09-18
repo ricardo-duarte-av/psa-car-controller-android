@@ -16,6 +16,12 @@ data class Trip(
     val temperatureC: Double?,
     val altitudeDiff: Double?,
     val route: List<LatLng>,
+    /** Battery % at the start and the end, when the server reports PSA's own trips. */
+    val startBatteryPercent: Double? = null,
+    val endBatteryPercent: Double? = null,
+    val startFuelPercent: Double? = null,
+    val endFuelPercent: Double? = null,
+    val maxSpeed: Double? = null,
 ) {
     val endAt: Instant? get() = if (startAt != null && duration != null) startAt.plus(duration) else null
 
@@ -28,6 +34,13 @@ data class Trip(
 }
 
 data class LatLng(val latitude: Double, val longitude: Double)
+
+/** Distance and days before the next service, from PSA. */
+data class Maintenance(
+    val daysBefore: Int?,
+    val distanceBefore: Double?,
+    val updatedAt: java.time.Instant?,
+)
 
 data class ChargingSession(
     val startAt: Instant?,

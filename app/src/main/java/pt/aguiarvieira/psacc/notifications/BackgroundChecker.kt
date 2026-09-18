@@ -50,9 +50,9 @@ class BackgroundChecker @Inject constructor(
                 .onFailure { errors += it.userMessage() }.getOrNull()
             val sessions = repository.chargingSessions(vehicle.vin)
                 .onFailure { errors += it.userMessage() }.getOrNull()
-            // PSACC only records trips for its first vehicle.
-            val trips = if (index == 0) {
-                repository.trips().onFailure { errors += it.userMessage() }.getOrNull()
+            // PSA serves trips per vehicle; PSACC's own fallback only covers its first one.
+            val trips = if (index == 0 || repository.capabilities.value.commandResults) {
+                repository.trips(vehicle.vin).onFailure { errors += it.userMessage() }.getOrNull()
             } else {
                 null
             }

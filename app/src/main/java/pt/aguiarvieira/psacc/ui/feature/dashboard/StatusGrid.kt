@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Battery5Bar
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocationOn
@@ -52,6 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import pt.aguiarvieira.psacc.domain.model.DoorLockState
+import pt.aguiarvieira.psacc.domain.model.Maintenance
 import pt.aguiarvieira.psacc.domain.model.LatLng
 import pt.aguiarvieira.psacc.domain.model.VehiclePosition
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
@@ -79,7 +81,13 @@ private data class Tile(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun StatusGrid(status: VehicleStatus, batterySoh: Double?, lengthUnit: String, modifier: Modifier = Modifier) {
+fun StatusGrid(
+    status: VehicleStatus,
+    batterySoh: Double?,
+    lengthUnit: String,
+    modifier: Modifier = Modifier,
+    maintenance: Maintenance? = null,
+) {
     val tiles = buildList {
         add(
             Tile(
@@ -133,6 +141,19 @@ fun StatusGrid(status: VehicleStatus, batterySoh: Double?, lengthUnit: String, m
                     shape = MaterialShapes.Arch.toShape(),
                 ),
             )
+        }
+        maintenance?.let { m ->
+            val value = m.distanceBefore?.let { Formatters.distance(it, lengthUnit) }
+                ?: m.daysBefore?.let { "$it days" }
+            if (value != null) {
+                add(
+                    Tile(
+                        Icons.Filled.Build, "Next service", value,
+                        supporting = m.daysBefore?.takeIf { m.distanceBefore != null }?.let { "or $it days" },
+                        shape = MaterialShapes.Cookie4Sided.toShape(),
+                    ),
+                )
+            }
         }
         status.moving?.takeIf { it && status.ignition == null }?.let {
             add(Tile(Icons.Filled.Speed, "Moving", Formatters.distance(status.speed, "km/h"), shape = MaterialShapes.Gem.toShape()))

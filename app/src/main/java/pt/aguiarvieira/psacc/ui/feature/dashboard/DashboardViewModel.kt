@@ -31,6 +31,7 @@ import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
 import pt.aguiarvieira.psacc.domain.model.key
 import pt.aguiarvieira.psacc.domain.model.matchesAction
 import pt.aguiarvieira.psacc.domain.model.HourMinute
+import pt.aguiarvieira.psacc.domain.model.Maintenance
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Vehicle
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
@@ -44,6 +45,8 @@ data class DashboardUiState(
     /** Pull-to-refresh in flight (a live PSA query, not the cache). */
     val refreshing: Boolean = false,
     val batterySoh: Double? = null,
+    /** Next service, when the server serves it. */
+    val maintenance: Maintenance? = null,
     /** Null when PSACC's charge control isn't configured for this car. */
     val chargeControl: ChargeControlSettings? = null,
     /** Commands awaiting PSACC's reply, so their buttons can show progress. */
@@ -112,6 +115,9 @@ class DashboardViewModel @Inject constructor(
             launch { loadStatus(vin, fromCache = true, showErrors = false) }
             launch {
                 repository.batterySoh(vin).onSuccess { soh -> _state.update { it.copy(batterySoh = soh) } }
+            }
+            launch {
+                repository.maintenance(vin).onSuccess { m -> _state.update { it.copy(maintenance = m) } }
             }
             launch {
                 repository.chargeControl(vin).onSuccess { cc -> _state.update { it.copy(chargeControl = cc) } }

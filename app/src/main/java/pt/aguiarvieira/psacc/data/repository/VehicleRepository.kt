@@ -10,6 +10,7 @@ import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
 import pt.aguiarvieira.psacc.domain.model.HourMinute
+import pt.aguiarvieira.psacc.domain.model.Maintenance
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.domain.model.Vehicle
@@ -64,7 +65,13 @@ interface VehicleRepository {
     /** Live events from the daemon's stream. Fails when the connection drops; callers retry. */
     fun events(): Flow<PsaccEvent>
 
-    /** PSACC only records trips for its first vehicle. */
-    suspend fun trips(): Result<List<Trip>>
+    /**
+     * PSA's own trips when the server can serve them (per vehicle, with the battery and fuel levels
+     * at both ends), falling back to the ones PSACC rebuilds — which exist for its first car only.
+     */
+    suspend fun trips(vin: String?): Result<List<Trip>>
+
+    /** Distance and days before the next service; null when the server doesn't serve it. */
+    suspend fun maintenance(vin: String): Result<Maintenance?>
     suspend fun chargingSessions(vin: String): Result<List<ChargingSession>>
 }

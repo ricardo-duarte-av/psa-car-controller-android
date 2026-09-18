@@ -22,6 +22,8 @@ import pt.aguiarvieira.psacc.data.network.EventSourceClient
 import pt.aguiarvieira.psacc.data.network.PsaccClient
 import pt.aguiarvieira.psacc.data.network.PsaccException
 import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
+import pt.aguiarvieira.psacc.data.network.dto.MaintenanceDto
+import pt.aguiarvieira.psacc.data.network.dto.PsaTripDto
 import pt.aguiarvieira.psacc.data.network.dto.ServerSettingsDto
 import pt.aguiarvieira.psacc.data.network.dto.SohDto
 import pt.aguiarvieira.psacc.data.network.dto.TripDto
@@ -35,6 +37,7 @@ import pt.aguiarvieira.psacc.domain.model.CommandOutcome
 import pt.aguiarvieira.psacc.domain.model.PsaccEvent
 import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
 import pt.aguiarvieira.psacc.domain.model.HourMinute
+import pt.aguiarvieira.psacc.domain.model.Maintenance
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.domain.model.Vehicle
@@ -158,7 +161,18 @@ class VehicleRepositoryImpl @Inject constructor(
         .events(connection.config.value ?: throw PsaccException.NotConfigured())
         .mapNotNull { frame -> frame.toEvent(json) }
 
-    override suspend fun trips(): Result<List<Trip>> = call {
+    override suspend fun trips(vin: String?): Result<List<Trip>> = call {
+        // PSA's own trips are richer and exist per vehicle; older servers don't serve them (404).
+        val psaTrips = vin?.let {
+            runCatching {
+                client.get(config(), ListSerializer(PsaTripDto.serializer()), listOf("vehicles", it, "psa_trips"))
+            }.getOrNull()
+        }
+        if (psaTrips != null) {
+            _psaTripsAvailable.value = true
+            return@call psaTrips.mapIndexed { index, dto -> dto.toDomain(index) }.sortedByDescending { it.startAt }
+        }
+        _psaTripsAvailable.value = false
         // An empty history comes back as {} rather than [].
         when (val body = client.getJson(config(), listOf("vehicles", "trips"))) {
             is JsonArray -> body.mapIndexedNotNull { index, element ->
@@ -166,6 +180,16 @@ class VehicleRepositoryImpl @Inject constructor(
             }
             else -> emptyList()
         }.sortedByDescending { it.startAt }
+    }
+
+    /** True once PSA's own trips have answered, so the UI can drop the "first vehicle only" note. */
+    private val _psaTripsAvailable = MutableStateFlow(false)
+    val psaTripsAvailable: StateFlow<Boolean> = _psaTripsAvailable.asStateFlow()
+
+    override suspend fun maintenance(vin: String): Result<Maintenance?> = call {
+        runCatching {
+            client.get(config(), MaintenanceDto.serializer(), listOf("vehicles", vin, "maintenance")).toDomain()
+        }.getOrNull()
     }
 
     override suspend fun chargingSessions(vin: String): Result<List<ChargingSession>> = call {

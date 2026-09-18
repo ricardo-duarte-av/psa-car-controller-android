@@ -67,9 +67,13 @@ fun ControlsSection(
 ) {
     // PSA refused these for this car (no service key): shown, but disabled and labelled.
     fun refused(command: CarCommand) = unavailable.any { it::class == command::class }
+
+    // A car that never reports a door state doesn't take remote locking either, so the control is
+    // disabled before the first attempt rather than after PSA refuses it.
+    val doorsUnreported = status.doorLock == null && status.openDoors.isEmpty()
     var confirm by rememberSaveable { mutableStateOf<Confirm?>(null) }
 
-    val lockRefused = refused(CarCommand.Lock(true))
+    val lockRefused = refused(CarCommand.Lock(true)) || doorsUnreported
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Connected button group: the two lock states read as a single segmented control.
@@ -110,7 +114,11 @@ fun ControlsSection(
 
         if (lockRefused) {
             Text(
-                text = "Your car doesn't offer remote locking through PSA.",
+                text = if (doorsUnreported) {
+                    "Your car doesn't report its doors to PSA, so they can't be locked from here."
+                } else {
+                    "Your car doesn't offer remote locking through PSA."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

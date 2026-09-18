@@ -12,6 +12,8 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import pt.aguiarvieira.psacc.data.network.PsaccException
+import pt.aguiarvieira.psacc.data.network.dto.MaintenanceDto
+import pt.aguiarvieira.psacc.data.network.dto.PsaTripDto
 import pt.aguiarvieira.psacc.data.network.dto.ServerSettingsDto
 import pt.aguiarvieira.psacc.data.network.dto.TripDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleDto
@@ -83,6 +85,59 @@ class MappersTest {
         assertEquals(Duration.ofSeconds(468), trip.duration)
         assertEquals(3, trip.route.size)
         assertEquals(23.0, trip.kwhPer100!!, 0.0)
+    }
+
+    @Test
+    fun `psa trip decodes with levels at both ends and seconds duration`() {
+        val body = """
+            [{"id":"abc","startedAt":"2026-09-12T09:49:48Z","stoppedAt":"2026-09-12T09:55:00Z",
+              "duration":312,"distance":3.1,"startMileage":142557.5,
+              "startEnergies":[{"type":"Fuel","level":63.0,"autonomy":290},
+                               {"type":"Electric","level":95.0,"autonomy":40}],
+              "endEnergies":[{"type":"Fuel","level":63.0},{"type":"Electric","level":78.0}],
+              "energyConsumptions":[{"type":"Electric","consumption":1.9,"avgConsumption":18.5}],
+              "kinetic":{"avgSpeed":36.0,"maxSpeed":72.0},
+              "startPosition":{"geometry":{"coordinates":[-9.14,38.72]}},
+              "stopPosition":{"geometry":{"coordinates":[-9.12,38.74]}}}]
+        """.trimIndent()
+        val trip = Fixtures.json.decodeFromString(ListSerializer(PsaTripDto.serializer()), body)
+            .mapIndexed { i, dto -> dto.toDomain(i) }
+            .single()
+
+        assertEquals(Instant.parse("2026-09-12T09:49:48Z"), trip.startAt)
+        // seconds here, where PSACC's own trips are in minutes
+        assertEquals(Duration.ofSeconds(312), trip.duration)
+        assertEquals(95.0, trip.startBatteryPercent!!, 0.0)
+        assertEquals(78.0, trip.endBatteryPercent!!, 0.0)
+        assertEquals(63.0, trip.startFuelPercent!!, 0.0)
+        assertEquals(18.5, trip.kwhPer100!!, 0.0)
+        assertEquals(1.9, trip.energyKwh!!, 0.0)
+        assertEquals(72.0, trip.maxSpeed!!, 0.0)
+        // two endpoints, no intermediate points: a line, and enough to count as a route
+        assertEquals(2, trip.route.size)
+        assertTrue(trip.hasRoute)
+    }
+
+    @Test
+    fun `a psa trip without positions has no route`() {
+        val body = """[{"id":"a","startedAt":"2026-09-17T20:13:33Z","duration":600,"distance":2.3}]"""
+        val trip = Fixtures.json.decodeFromString(ListSerializer(PsaTripDto.serializer()), body)
+            .map { it.toDomain(0) }.single()
+        assertTrue(trip.route.isEmpty())
+        assertFalse(trip.hasRoute)
+        assertNull(trip.startBatteryPercent)
+    }
+
+    @Test
+    fun `maintenance decodes`() {
+        val m = Fixtures.json.decodeFromString(
+            MaintenanceDto.serializer(),
+            """{"createdAt":"2026-09-18T19:44:12Z","updatedAt":"2026-09-18T19:44:12Z",
+               "mileageBeforeMaintenance":29880.0,"daysBeforeMaintenance":348}""",
+        ).toDomain()
+        assertEquals(348, m.daysBefore)
+        assertEquals(29880.0, m.distanceBefore!!, 0.0)
+        assertEquals(Instant.parse("2026-09-18T19:44:12Z"), m.updatedAt)
     }
 
     @Test

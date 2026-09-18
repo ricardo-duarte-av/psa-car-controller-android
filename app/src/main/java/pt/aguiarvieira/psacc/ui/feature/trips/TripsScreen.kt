@@ -86,15 +86,16 @@ fun TripsScreen(
     isPrimaryVehicle: Boolean,
     viewModel: TripsViewModel = hiltViewModel(),
 ) {
-    if (!isPrimaryVehicle) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    // Only PSACC's own rebuilt trips are limited to its first car; PSA serves them per vehicle.
+    if (!isPrimaryVehicle && !state.perVehicle) {
         MessageState(
             icon = Icons.Filled.Route,
             title = "Trips are for your first car only",
-            body = "PSA Car Controller only records trips for the first vehicle on the account.",
+            body = "This server only records trips for the first vehicle on the account.",
         )
         return
     }
-    val state by viewModel.state.collectAsStateWithLifecycle()
     var openTripId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     when (val trips = state.trips) {
@@ -219,6 +220,7 @@ private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) 
                 Text(
                     listOfNotNull(
                         Formatters.duration(trip.duration),
+                        batteryUsed(trip),
                         trip.kwhPer100?.takeIf { it > 0 }?.let { "${Formatters.number(it, 1)} kWh/100" },
                         trip.litresPer100?.takeIf { it > 0 }?.let { "${Formatters.number(it, 1)} L/100" },
                     ).joinToString(" · "),
@@ -228,6 +230,13 @@ private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) 
             }
         }
     }
+}
+
+/** "95% → 93%" when the server reports PSA's own trips, which carry the levels at both ends. */
+private fun batteryUsed(trip: Trip): String? {
+    val start = trip.startBatteryPercent ?: return null
+    val end = trip.endBatteryPercent ?: return null
+    return "${Formatters.percent(start)} → ${Formatters.percent(end)}"
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -258,7 +267,16 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
                     .aspectRatio(1.4f)
                     .clip(MaterialTheme.shapes.extraLarge),
             )
-            if (!trip.hasRoute) NoRouteNote()
+            if (!trip.hasRoute) {
+                NoRouteNote(trip.route.size)
+            } else if (trip.route.size == 2) {
+                Text(
+                    text = "Start and end only: PSA reports where the trip began and ended, not the " +
+                        "route driven.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (fullScreenMap) {
                 val end = trip.route.last()
                 FullScreenMapDialog(
@@ -296,6 +314,16 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
             trip.litresPer100?.takeIf { it > 0 }?.let {
                 add(Triple(Icons.Filled.LocalGasStation, "Fuel", "${Formatters.number(it, 1)} L/100"))
             }
+            trip.maxSpeed?.let { add(Triple(Icons.Filled.Speed, "Top speed", "${it.toInt()} ${settings.lengthUnit}/h")) }
+            batteryUsed(trip)?.let { add(Triple(Icons.Filled.BatteryChargingFull, "Battery", it)) }
+            if (trip.startFuelPercent != null && trip.endFuelPercent != null) {
+                add(
+                    Triple(
+                        Icons.Filled.LocalGasStation, "Fuel",
+                        "${Formatters.percent(trip.startFuelPercent)} → ${Formatters.percent(trip.endFuelPercent)}",
+                    ),
+                )
+            }
             trip.temperatureC?.let { add(Triple(Icons.Filled.Thermostat, "Temperature", Formatters.temperature(it))) }
             trip.altitudeDiff?.let { add(Triple(Icons.Filled.Height, "Elevation change", "${if (it > 0) "+" else ""}${it.toInt()} m")) }
             trip.odometer?.let { add(Triple(Icons.Filled.Timeline, "Odometer", Formatters.distance(it, settings.lengthUnit))) }
@@ -324,10 +352,14 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
 }
 
 @Composable
-private fun NoRouteNote() {
+private fun NoRouteNote(points: Int) {
     Text(
-        text = "No route recorded: the car kept reporting the same GPS position during this trip, " +
-            "so only its last known location is shown.",
+        text = if (points == 0) {
+            "No route recorded: the car didn't report its position during this trip."
+        } else {
+            "No route recorded: the car kept reporting the same GPS position during this trip, " +
+                "so only its last known location is shown."
+        },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

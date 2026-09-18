@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -35,6 +37,8 @@ data class TripsUiState(
     val summary: TripsSummary? = null,
     val refreshing: Boolean = false,
     val settings: ServerSettings = ServerSettings.Default,
+    /** True when the trips came from PSA itself, which serves them for every vehicle. */
+    val perVehicle: Boolean = false,
 )
 
 @HiltViewModel
@@ -43,13 +47,20 @@ class TripsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val content = MutableStateFlow(TripsUiState())
+    private var vin: String? = null
 
     val state: StateFlow<TripsUiState> = combine(content, repository.serverSettings) { s, settings ->
         s.copy(settings = settings)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsUiState())
 
     init {
-        load(initial = true)
+        viewModelScope.launch {
+            repository.selectedVehicle.filterNotNull().distinctUntilChangedBy { it.vin }.collect {
+                vin = it.vin
+                content.value = TripsUiState()
+                load(initial = true)
+            }
+        }
     }
 
     fun refresh() = load(initial = false)
@@ -62,10 +73,15 @@ class TripsViewModel @Inject constructor(
     private fun load(initial: Boolean) {
         if (!initial) content.update { it.copy(refreshing = true) }
         viewModelScope.launch {
-            repository.trips()
+            repository.trips(vin)
                 .onSuccess { trips ->
                     content.update {
-                        it.copy(trips = ContentState.Data(groupByDay(trips)), summary = summarize(trips), refreshing = false)
+                        it.copy(
+                            trips = ContentState.Data(groupByDay(trips)),
+                            summary = summarize(trips),
+                            refreshing = false,
+                            perVehicle = trips.any { trip -> trip.startBatteryPercent != null },
+                        )
                     }
                 }
                 .onFailure { e ->

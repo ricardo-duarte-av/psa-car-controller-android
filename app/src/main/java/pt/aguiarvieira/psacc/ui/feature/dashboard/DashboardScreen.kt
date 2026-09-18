@@ -86,7 +86,12 @@ fun DashboardScreen(
                     }
                     item(key = "status-header") { SectionHeader("Status") }
                     item(key = "status") {
-                        StatusGrid(status = s, batterySoh = state.batterySoh, lengthUnit = state.settings.lengthUnit)
+                        StatusGrid(
+                            status = s,
+                            batterySoh = state.batterySoh,
+                            maintenance = state.maintenance,
+                            lengthUnit = state.settings.lengthUnit,
+                        )
                     }
                     s.position?.let { position ->
                         item(key = "location-header") { SectionHeader("Location") }

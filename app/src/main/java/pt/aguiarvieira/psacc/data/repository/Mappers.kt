@@ -10,6 +10,10 @@ import kotlinx.serialization.json.contentOrNull
 import pt.aguiarvieira.psacc.data.network.PsaccException
 import pt.aguiarvieira.psacc.data.network.SseFrame
 import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
+import pt.aguiarvieira.psacc.data.network.dto.MaintenanceDto
+import pt.aguiarvieira.psacc.data.network.dto.PositionDto
+import pt.aguiarvieira.psacc.data.network.dto.PsaTripDto
+import pt.aguiarvieira.psacc.data.network.dto.PsaTripEnergyDto
 import pt.aguiarvieira.psacc.data.network.dto.CommandResultDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleEventDto
 import pt.aguiarvieira.psacc.domain.model.CommandOutcome
@@ -26,6 +30,7 @@ import pt.aguiarvieira.psacc.domain.model.DoorLockState
 import pt.aguiarvieira.psacc.domain.model.ElectricEnergy
 import pt.aguiarvieira.psacc.domain.model.FuelEnergy
 import pt.aguiarvieira.psacc.domain.model.LatLng
+import pt.aguiarvieira.psacc.domain.model.Maintenance
 import pt.aguiarvieira.psacc.domain.model.Preconditioning
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
@@ -157,6 +162,52 @@ internal fun TripDto.toDomain(index: Int): Trip {
         route = route,
     )
 }
+
+/**
+ * PSA's own trip. Duration is in seconds here (PSACC's own trips use minutes), consumption is per
+ * energy type, and the route is the two endpoints when the car reported them — PSA gives no
+ * intermediate points, so it's a straight line, not a traced route.
+ */
+internal fun PsaTripDto.toDomain(index: Int): Trip {
+    fun level(list: List<PsaTripEnergyDto>?, type: String) =
+        list?.firstOrNull { it.type.equals(type, ignoreCase = true) }?.level
+    fun consumption(type: String) =
+        energyConsumptions?.firstOrNull { it.type.equals(type, ignoreCase = true) }
+
+    val electric = consumption("Electric")
+    val fuel = consumption("Fuel")
+    val route = listOfNotNull(startPosition?.toLatLng(), stopPosition?.toLatLng())
+    return Trip(
+        id = id?.hashCode() ?: index,
+        startAt = PsaccTime.parseInstant(startedAt),
+        duration = duration?.let { Duration.ofSeconds(it.toLong()) },
+        distance = distance,
+        odometer = startMileage,
+        averageSpeed = kinetic?.avgSpeed,
+        energyKwh = electric?.consumption,
+        kwhPer100 = electric?.avgConsumption,
+        litresPer100 = fuel?.avgConsumption,
+        temperatureC = null,
+        altitudeDiff = null,
+        route = route,
+        startBatteryPercent = level(startEnergies, "Electric"),
+        endBatteryPercent = level(endEnergies, "Electric"),
+        startFuelPercent = level(startEnergies, "Fuel"),
+        endFuelPercent = level(endEnergies, "Fuel"),
+        maxSpeed = kinetic?.maxSpeed?.takeIf { it > 0 },
+    )
+}
+
+private fun PositionDto.toLatLng(): LatLng? {
+    val coordinates = geometry?.coordinates
+    return if (coordinates != null && coordinates.size >= 2) LatLng(coordinates[1], coordinates[0]) else null
+}
+
+internal fun MaintenanceDto.toDomain() = Maintenance(
+    daysBefore = daysBefore?.toInt(),
+    distanceBefore = mileageBefore,
+    updatedAt = PsaccTime.parseInstant(updatedAt),
+)
 
 internal fun ChargingSessionDto.toDomain() = ChargingSession(
     startAt = PsaccTime.parseInstant(startAt),
