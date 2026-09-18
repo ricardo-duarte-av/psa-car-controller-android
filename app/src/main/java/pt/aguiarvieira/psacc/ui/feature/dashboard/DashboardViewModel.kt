@@ -198,6 +198,15 @@ class DashboardViewModel @Inject constructor(
                 }
             }
 
+            is PsaccEvent.MonitorUpdate -> {
+                val vin = vin()
+                if (event.vin != null && vin != null && event.vin != vin) return
+                // PSA only pushes when something actually changed, so this is worth a read straight
+                // away, unlike the periodic vehicle events.
+                lastEventRefresh = System.currentTimeMillis()
+                vin?.let { loadStatus(it, fromCache = true, showErrors = false) }
+            }
+
             is PsaccEvent.CommandUpdate -> {
                 val outcome = event.outcome
                 if (outcome.settled && outcome.correlationId != null && outcome.correlationId in awaitedCommands) {

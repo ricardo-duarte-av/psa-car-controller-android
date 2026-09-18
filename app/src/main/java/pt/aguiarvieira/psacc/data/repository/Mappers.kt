@@ -248,6 +248,15 @@ internal fun SseFrame.toEvent(json: Json): PsaccEvent? = runCatching {
             )
         }
 
+        "psa_monitor" -> {
+            val payload = data["data"] as? JsonObject
+            PsaccEvent.MonitorUpdate(
+                vin = (payload?.get("vin") as? JsonPrimitive)?.contentOrNull,
+                label = (payload?.get("label") as? JsonPrimitive)?.contentOrNull,
+                at = PsaccTime.parseInstant((data["date"] as? JsonPrimitive)?.contentOrNull),
+            )
+        }
+
         "command_result" -> {
             val payload = data["data"] ?: return null
             PsaccEvent.CommandUpdate(json.decodeFromJsonElement(CommandResultDto.serializer(), payload).toDomain())

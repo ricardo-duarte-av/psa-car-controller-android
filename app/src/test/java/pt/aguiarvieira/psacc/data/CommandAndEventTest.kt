@@ -111,6 +111,19 @@ class CommandAndEventTest {
     }
 
     @Test
+    fun `psa monitor pushes are recognised`() {
+        val body = """
+            {"type": "psa_monitor", "date": "2026-09-18T21:23:16+00:00",
+             "data": {"vin": "${Fixtures.VIN}", "label": "psacc_events"}}
+        """.trimIndent()
+        val frame = SseFrame("psa_monitor", Fixtures.json.parseToJsonElement(body) as JsonObject)
+        val event = frame.toEvent(Fixtures.json) as PsaccEvent.MonitorUpdate
+        assertEquals(Fixtures.VIN, event.vin)
+        assertEquals("psacc_events", event.label)
+        assertEquals(Instant.parse("2026-09-18T21:23:16Z"), event.at)
+    }
+
+    @Test
     fun `unknown and malformed frames are ignored`() {
         assertNull(SseFrame("hello", JsonObject(emptyMap())).toEvent(Fixtures.json))
         assertNull(SseFrame("vehicle", JsonObject(emptyMap())).toEvent(Fixtures.json))

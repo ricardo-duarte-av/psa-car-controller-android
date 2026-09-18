@@ -94,6 +94,13 @@ sealed interface PsaccEvent {
 
     /** A command's result, arriving without having to poll `/command/<id>`. */
     data class CommandUpdate(val outcome: CommandOutcome) : PsaccEvent
+
+    /**
+     * Something PSA itself pushed: the daemon subscribes to PSA's monitors (charge, plug, doors,
+     * movement, engine, alerts) and forwards them. It means "the car just changed", so the app
+     * re-reads the status rather than trusting the payload, whose shape varies per trigger.
+     */
+    data class MonitorUpdate(val vin: String?, val label: String?, val at: Instant?) : PsaccEvent
 }
 
 /** Matches the `action` the daemon reports (its MQTT topic) back to the command that caused it. */
