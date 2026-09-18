@@ -63,8 +63,13 @@ fun ControlsSection(
     pending: Set<CarCommand>,
     onCommand: (CarCommand) -> Unit,
     modifier: Modifier = Modifier,
+    unavailable: Set<CarCommand> = emptySet(),
 ) {
+    // PSA refused these for this car (no service key): shown, but disabled and labelled.
+    fun refused(command: CarCommand) = unavailable.any { it::class == command::class }
     var confirm by rememberSaveable { mutableStateOf<Confirm?>(null) }
+
+    val lockRefused = refused(CarCommand.Lock(true))
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Connected button group: the two lock states read as a single segmented control.
@@ -76,7 +81,7 @@ fun ControlsSection(
             ToggleButton(
                 checked = status.doorLock == DoorLockState.Locked,
                 onCheckedChange = { onCommand(CarCommand.Lock(true)) },
-                enabled = !lockPending,
+                enabled = !lockPending && !lockRefused,
                 shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(),
                 modifier = Modifier
                     .weight(1f)
@@ -88,7 +93,7 @@ fun ControlsSection(
             ToggleButton(
                 checked = status.doorLock == DoorLockState.Unlocked || status.doorLock == DoorLockState.Partial,
                 onCheckedChange = { confirm = Confirm.UNLOCK },
-                enabled = !lockPending,
+                enabled = !lockPending && !lockRefused,
                 shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
                 modifier = Modifier
                     .weight(1f)
@@ -103,6 +108,14 @@ fun ControlsSection(
             }
         }
 
+        if (lockRefused) {
+            Text(
+                text = "Your car doesn't offer remote locking through PSA.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
         val climateOn = status.preconditioning?.active == true
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionTile(
@@ -110,6 +123,7 @@ fun ControlsSection(
                 label = "Climate",
                 supporting = if (climateOn) "On" else "Off",
                 active = climateOn,
+                unavailable = refused(CarCommand.Preconditioning(true)),
                 loading = pending.any { it is CarCommand.Preconditioning },
                 shape = MaterialShapes.Cookie9Sided.toShape(),
                 onClick = { onCommand(CarCommand.Preconditioning(!climateOn)) },
@@ -119,6 +133,7 @@ fun ControlsSection(
                 icon = Icons.Filled.Sync,
                 label = "Update",
                 supporting = "Wake the car",
+                unavailable = refused(CarCommand.WakeUp),
                 loading = CarCommand.WakeUp in pending,
                 shape = MaterialShapes.Clover4Leaf.toShape(),
                 onClick = { onCommand(CarCommand.WakeUp) },
@@ -130,6 +145,7 @@ fun ControlsSection(
                 icon = Icons.Filled.Campaign,
                 label = "Horn",
                 supporting = "Honk once",
+                unavailable = refused(CarCommand.Horn),
                 loading = CarCommand.Horn in pending,
                 shape = MaterialShapes.Pentagon.toShape(),
                 onClick = { confirm = Confirm.HORN },
@@ -139,6 +155,7 @@ fun ControlsSection(
                 icon = Icons.Filled.Highlight,
                 label = "Lights",
                 supporting = "Flash ~10 s",
+                unavailable = refused(CarCommand.Lights),
                 loading = CarCommand.Lights in pending,
                 shape = MaterialShapes.Sunny.toShape(),
                 onClick = { confirm = Confirm.LIGHTS },
@@ -183,6 +200,7 @@ private fun ActionTile(
     modifier: Modifier = Modifier,
     active: Boolean = false,
     loading: Boolean = false,
+    unavailable: Boolean = false,
 ) {
     val container by animateColorAsState(
         if (active) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainer,
@@ -191,8 +209,8 @@ private fun ActionTile(
     )
     Card(
         onClick = onClick,
-        enabled = !loading,
-        modifier = modifier.semantics { stateDescription = supporting },
+        enabled = !loading && !unavailable,
+        modifier = modifier.semantics { stateDescription = if (unavailable) NOT_AVAILABLE else supporting },
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = container, disabledContainerColor = container),
     ) {
@@ -219,7 +237,7 @@ private fun ActionTile(
             Column {
                 Text(label, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    supporting,
+                    if (unavailable) NOT_AVAILABLE else supporting,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -227,6 +245,8 @@ private fun ActionTile(
         }
     }
 }
+
+private const val NOT_AVAILABLE = "Not available for this car"
 
 @Composable
 fun ConfirmDialog(

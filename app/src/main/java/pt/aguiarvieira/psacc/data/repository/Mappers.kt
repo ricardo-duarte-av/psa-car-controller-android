@@ -1,6 +1,20 @@
 package pt.aguiarvieira.psacc.data.repository
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import pt.aguiarvieira.psacc.data.network.PsaccException
+import pt.aguiarvieira.psacc.data.network.SseFrame
 import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
+import pt.aguiarvieira.psacc.data.network.dto.CommandResultDto
+import pt.aguiarvieira.psacc.data.network.dto.VehicleEventDto
+import pt.aguiarvieira.psacc.domain.model.CommandOutcome
+import pt.aguiarvieira.psacc.domain.model.CommandState
+import pt.aguiarvieira.psacc.domain.model.PsaccEvent
 import pt.aguiarvieira.psacc.data.network.dto.ServerSettingsDto
 import pt.aguiarvieira.psacc.data.network.dto.TripDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleDto
@@ -165,3 +179,80 @@ internal fun ServerSettingsDto.toDomain() = ServerSettings(
     nightEnd = electricity?.nightHourEnd,
     chargerEfficiency = electricity?.chargerEfficiency,
 )
+
+/**
+ * A command endpoint's reply.
+ *
+ * The forked daemon answers with a [CommandResultDto]; the stock one answers `true` (or `null` for
+ * the horn, which is fire-and-forget), and either may answer `{"error": "..."}` with HTTP 200 when a
+ * rate limit is hit.
+ */
+internal fun parseCommandReply(reply: JsonElement, json: Json = DefaultJson): CommandOutcome = when {
+    reply is JsonObject && reply["error"] != null ->
+        throw PsaccException.Server((reply["error"] as? JsonPrimitive)?.contentOrNull ?: "The command failed.")
+
+    reply is JsonObject && reply["status"] != null ->
+        json.decodeFromJsonElement(CommandResultDto.serializer(), reply).toDomain()
+
+    reply is JsonPrimitive && reply.booleanOrNull == false ->
+        throw PsaccException.Server("The car rejected the command.")
+
+    // `true`, `null`, or an object this app doesn't know: queued, nothing more will be known.
+    else -> CommandOutcome(state = CommandState.Sent, message = SENT_MESSAGE)
+}
+
+internal fun CommandResultDto.toDomain(): CommandOutcome {
+    val state = when (status?.lowercase()) {
+        "success" -> CommandState.Success
+        "failed" -> CommandState.Failed
+        "pending" -> CommandState.Pending
+        else -> CommandState.Sent
+    }
+    return CommandOutcome(
+        state = state,
+        message = message?.takeIf { it.isNotBlank() } ?: defaultMessage(state),
+        correlationId = correlationId,
+        action = action,
+        returnCode = returnCode,
+        reason = reason,
+        updatedAt = PsaccTime.parseInstant(updatedAt),
+    )
+}
+
+private fun defaultMessage(state: CommandState) = when (state) {
+    CommandState.Success -> "The car accepted the command"
+    CommandState.Failed -> "The car didn't accept the command"
+    CommandState.Pending -> "Waiting for the car to answer"
+    CommandState.Sent -> SENT_MESSAGE
+}
+
+private const val SENT_MESSAGE = "Sent to the car"
+
+private val DefaultJson = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
+/** Maps one `/events` frame to a domain event; unknown event types are ignored. */
+internal fun SseFrame.toEvent(json: Json): PsaccEvent? = runCatching {
+    when (event) {
+        "vehicle" -> {
+            val payload = data["data"] ?: return null
+            val dto = json.decodeFromJsonElement(VehicleEventDto.serializer(), payload)
+            PsaccEvent.VehicleUpdate(
+                vin = dto.vin,
+                at = PsaccTime.parseInstant(dto.date) ?: PsaccTime.parseInstant((data["date"] as? JsonPrimitive)?.contentOrNull),
+                batteryLevel = dto.batteryLevel,
+                autonomy = dto.autonomy,
+                charging = dto.charging,
+                chargingRate = dto.chargingRate,
+                cablePlugged = dto.cablePlugged,
+                preconditioning = dto.preconditioning,
+            )
+        }
+
+        "command_result" -> {
+            val payload = data["data"] ?: return null
+            PsaccEvent.CommandUpdate(json.decodeFromJsonElement(CommandResultDto.serializer(), payload).toDomain())
+        }
+
+        else -> null
+    }
+}.getOrNull()

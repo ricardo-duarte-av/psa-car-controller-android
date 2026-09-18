@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ElectricalServices
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.PowerOff
@@ -36,13 +37,26 @@ import androidx.compose.ui.unit.dp
 import pt.aguiarvieira.psacc.domain.model.ChargeStatus
 import pt.aguiarvieira.psacc.domain.model.ElectricEnergy
 import pt.aguiarvieira.psacc.domain.model.FuelEnergy
+import pt.aguiarvieira.psacc.domain.model.PsaccEvent
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
 import pt.aguiarvieira.psacc.util.Formatters
 
 /** The big battery ring (or fuel gauge for ICE cars), range, charge state and data freshness. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun HeroCard(status: VehicleStatus, lengthUnit: String, modifier: Modifier = Modifier) {
+fun HeroCard(
+    status: VehicleStatus,
+    lengthUnit: String,
+    modifier: Modifier = Modifier,
+    live: PsaccEvent.VehicleUpdate? = null,
+) {
+    // The stream pushes battery and range within seconds; the polled status can be a minute behind.
+    // Only these two are corroborated by the API — plug and charge state stay with the status.
+    val fresher = live != null && (status.updatedAt == null || live.at == null || live.at >= status.updatedAt)
+    val electricOverride = status.electric?.takeIf { fresher }?.copy(
+        levelPercent = live?.batteryLevel ?: status.electric.levelPercent,
+        rangeKm = live?.autonomy ?: status.electric.rangeKm,
+    )
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -58,7 +72,7 @@ fun HeroCard(status: VehicleStatus, lengthUnit: String, modifier: Modifier = Mod
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            val electric = status.electric
+            val electric = electricOverride ?: status.electric
             if (electric != null) {
                 BatteryRing(electric, lengthUnit)
                 ChargeChip(electric)
@@ -67,9 +81,17 @@ fun HeroCard(status: VehicleStatus, lengthUnit: String, modifier: Modifier = Mod
                 if (electric != null) FuelBar(fuel, lengthUnit) else FuelOnly(fuel, lengthUnit)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(
+                    imageVector = if (fresher) Icons.Filled.Bolt else Icons.Filled.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
                 Text(
-                    text = " Updated ${Formatters.relative(status.updatedAt)}",
+                    text = if (fresher) {
+                        " Live · updated ${Formatters.relative(live.at ?: status.updatedAt)}"
+                    } else {
+                        " Updated ${Formatters.relative(status.updatedAt)}"
+                    },
                     style = MaterialTheme.typography.labelMedium,
                 )
             }

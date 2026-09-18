@@ -61,8 +61,13 @@ import pt.aguiarvieira.psacc.ui.components.ShapedIcon
 import pt.aguiarvieira.psacc.ui.components.mapsAvailable
 import pt.aguiarvieira.psacc.ui.components.StatTile
 import pt.aguiarvieira.psacc.util.Formatters
+import java.time.Duration
+import java.time.Instant
 import java.util.Locale
 import kotlin.coroutines.resume
+
+/** Beyond this, the car's position is shown as "last known" rather than where it is now. */
+private val STALE_POSITION_AFTER: Duration = Duration.ofHours(24)
 
 private data class Tile(
     val icon: ImageVector,
@@ -210,10 +215,22 @@ fun LocationCard(position: VehiclePosition, modifier: Modifier = Modifier) {
                     if (details.isNotEmpty()) {
                         Text(details, style = MaterialTheme.typography.bodySmall)
                     }
+                    val stale = position.updatedAt?.isBefore(Instant.now().minus(STALE_POSITION_AFTER)) == true
                     Text(
-                        "Seen ${Formatters.relative(position.updatedAt)}",
+                        text = if (stale) {
+                            "Last known position · ${Formatters.relative(position.updatedAt)}"
+                        } else {
+                            "Seen ${Formatters.relative(position.updatedAt)}"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    if (stale) {
+                        Text(
+                            text = "The car hasn't reported a new position since then, so it may have moved.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
             Button(

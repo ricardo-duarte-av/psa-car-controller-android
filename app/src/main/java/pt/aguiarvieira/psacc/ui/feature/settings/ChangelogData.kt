@@ -21,6 +21,20 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.4",
+        date = "18/09/2026",
+        changes = listOf(
+            "Remote commands now report what the car actually did — \"Doors unlocked\", or why PSA " +
+                "refused — instead of only saying the command was sent. Needs a server that reports " +
+                "command results; with an older one the app still says \"sent to the car\".",
+            "A control PSA refuses for your car is greyed out as \"not available for this car\". " +
+                "Settings → Reset unavailable controls tries them again.",
+            "The Car tab now follows the server's live event stream while it is open, so the battery " +
+                "level and range update within seconds instead of once a minute.",
+            "The car's location is marked as \"last known\" when it hasn't been updated for a day.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.3",
         date = "16/09/2026",
         changes = listOf(

@@ -81,6 +81,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     var confirmDisconnect by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
@@ -161,6 +162,16 @@ fun SettingsScreen(
                     text = "Edit these in PSA Car Controller's web interface.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                SettingsRow(
+                    icon = Icons.Filled.Refresh,
+                    title = "Reset unavailable controls",
+                    subtitle = "Try remote commands again that PSA refused for this car",
+                    onClick = {
+                        viewModel.resetUnavailableControls()
+                        Toast.makeText(context, "Remote controls re-enabled", Toast.LENGTH_SHORT).show()
+                    },
                 )
 
                 HorizontalDivider()

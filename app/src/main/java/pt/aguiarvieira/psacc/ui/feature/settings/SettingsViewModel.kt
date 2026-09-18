@@ -71,6 +71,11 @@ class SettingsViewModel @Inject constructor(
 
     fun checkNow() = scheduler.checkNow()
 
+    /** Forgets which controls PSA refused, so they can be tried again (e.g. after a subscription change). */
+    fun resetUnavailableControls() {
+        viewModelScope.launch { preferences.clearRefusedCommands() }
+    }
+
     init {
         viewModelScope.launch { repository.refreshServerSettings() }
     }

@@ -11,15 +11,25 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pt.aguiarvieira.psacc.data.repository.VehicleRepository
+import pt.aguiarvieira.psacc.data.settings.AppPreferences
 import pt.aguiarvieira.psacc.domain.model.CarCommand
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
+import pt.aguiarvieira.psacc.domain.model.CommandOutcome
+import pt.aguiarvieira.psacc.domain.model.CommandState
+import pt.aguiarvieira.psacc.domain.model.PsaccEvent
+import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
+import pt.aguiarvieira.psacc.domain.model.key
+import pt.aguiarvieira.psacc.domain.model.matchesAction
 import pt.aguiarvieira.psacc.domain.model.HourMinute
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Vehicle
@@ -38,6 +48,12 @@ data class DashboardUiState(
     val chargeControl: ChargeControlSettings? = null,
     /** Commands awaiting PSACC's reply, so their buttons can show progress. */
     val pendingCommands: Set<CarCommand> = emptySet(),
+    /** Commands PSA refuses for this car; their controls are shown as unavailable. */
+    val refusedCommands: Set<CarCommand> = emptySet(),
+    /** What this server can do (report command results, stream events). */
+    val capabilities: ServerCapabilities = ServerCapabilities.Basic,
+    /** Latest pushed values, fresher than the polled status; null when nothing has arrived. */
+    val live: PsaccEvent.VehicleUpdate? = null,
     val savingChargeSettings: Boolean = false,
     val settings: ServerSettings = ServerSettings.Default,
 )
@@ -46,7 +62,11 @@ data class DashboardUiState(
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: VehicleRepository,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
+
+    /** Correlation ids whose result is still awaited, from the stream or by polling. */
+    private val awaitedCommands = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     private val _state = MutableStateFlow(DashboardUiState())
     val state: StateFlow<DashboardUiState> = _state.asStateFlow()
@@ -57,6 +77,8 @@ class DashboardViewModel @Inject constructor(
 
     private var autoRefreshJob: Job? = null
     private var loadJob: Job? = null
+    private var eventJob: Job? = null
+    private var lastEventRefresh = 0L
 
     init {
         viewModelScope.launch {
@@ -71,6 +93,14 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             repository.serverSettings.collect { s -> _state.update { it.copy(settings = s) } }
         }
+        viewModelScope.launch {
+            repository.capabilities.collect { c -> _state.update { it.copy(capabilities = c) } }
+        }
+        viewModelScope.launch {
+            combine(repository.selectedVehicle, preferences.refusedCommands) { vehicle, refused ->
+                vehicle?.vin?.let { vin -> ALL_COMMANDS.filter { "$vin|${it.key()}" in refused }.toSet() }.orEmpty()
+            }.collect { refused -> _state.update { it.copy(refusedCommands = refused) } }
+        }
     }
 
     private fun vin(): String? = _state.value.vehicle?.vin
@@ -78,6 +108,7 @@ class DashboardViewModel @Inject constructor(
     private fun loadAll(vin: String) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            launch { repository.refreshCapabilities() }
             launch { loadStatus(vin, fromCache = true, showErrors = false) }
             launch {
                 repository.batterySoh(vin).onSuccess { soh -> _state.update { it.copy(batterySoh = soh) } }
@@ -106,6 +137,7 @@ class DashboardViewModel @Inject constructor(
 
     /** Re-reads PSACC's cache periodically while the dashboard is on screen. */
     fun startAutoRefresh() {
+        startEventStream()
         if (autoRefreshJob?.isActive == true) return
         autoRefreshJob = viewModelScope.launch {
             while (isActive) {
@@ -118,6 +150,62 @@ class DashboardViewModel @Inject constructor(
     fun stopAutoRefresh() {
         autoRefreshJob?.cancel()
         autoRefreshJob = null
+        eventJob?.cancel()
+        eventJob = null
+    }
+
+    /**
+     * Follows the daemon's event stream while the dashboard is on screen: pushed values land in
+     * [DashboardUiState.live] and nudge a cached re-read, so the rest of the status catches up
+     * without waiting for the next poll. Only on servers that stream; reconnects with a backoff.
+     */
+    private fun startEventStream() {
+        if (eventJob?.isActive == true) return
+        eventJob = viewModelScope.launch {
+            repository.capabilities.collectLatest { capabilities ->
+                if (!capabilities.events) return@collectLatest
+                var backoff = EVENT_RETRY_MIN_MS
+                while (isActive) {
+                    try {
+                        repository.events().collect { event ->
+                            backoff = EVENT_RETRY_MIN_MS
+                            onEvent(event)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Dropped stream (server restart, network change): back off and re-subscribe.
+                    }
+                    delay(backoff)
+                    backoff = (backoff * 2).coerceAtMost(EVENT_RETRY_MAX_MS)
+                }
+            }
+        }
+    }
+
+    private suspend fun onEvent(event: PsaccEvent) {
+        when (event) {
+            is PsaccEvent.VehicleUpdate -> {
+                val vin = vin()
+                if (event.vin != null && vin != null && event.vin != vin) return
+                _state.update { it.copy(live = event) }
+                // The event carries only part of the picture; re-read the cache to catch up, but
+                // not on every event — a charging car emits them continuously.
+                val now = System.currentTimeMillis()
+                if (now - lastEventRefresh > EVENT_REFRESH_THROTTLE_MS) {
+                    lastEventRefresh = now
+                    vin?.let { loadStatus(it, fromCache = true, showErrors = false) }
+                }
+            }
+
+            is PsaccEvent.CommandUpdate -> {
+                val outcome = event.outcome
+                if (outcome.settled && outcome.correlationId != null && outcome.correlationId in awaitedCommands) {
+                    awaitedCommands -= outcome.correlationId
+                    report(outcome)
+                }
+            }
+        }
     }
 
     private suspend fun loadStatus(vin: String, fromCache: Boolean, showErrors: Boolean) {
@@ -141,11 +229,13 @@ class DashboardViewModel @Inject constructor(
         if (command in _state.value.pendingCommands) return
         _state.update { it.copy(pendingCommands = it.pendingCommands + command) }
         viewModelScope.launch {
-            val result = repository.send(vin, command)
+            // On a daemon that reports results, hold the request open for the car's answer; the
+            // stock one ignores this and answers straight away.
+            val result = repository.send(vin, command, waitSeconds = COMMAND_WAIT_SECONDS)
             _state.update { it.copy(pendingCommands = it.pendingCommands - command) }
             result
-                .onSuccess {
-                    _messages.send(successMessage(command))
+                .onSuccess { outcome ->
+                    handleOutcome(vin, command, outcome)
                     // Commands travel PSACC → PSA → car over MQTT; give the car time to report back,
                     // then pick up whatever PSACC has cached by then.
                     delay(POST_COMMAND_REFRESH_MS)
@@ -153,6 +243,52 @@ class DashboardViewModel @Inject constructor(
                 }
                 .onFailure { _messages.send(it.userMessage()) }
         }
+    }
+
+    private suspend fun handleOutcome(vin: String, command: CarCommand, outcome: CommandOutcome) {
+        when (outcome.state) {
+            CommandState.Sent -> _messages.send("${actionName(command)} — sent to the car")
+            CommandState.Success -> _messages.send(successMessage(command))
+            CommandState.Failed -> {
+                _messages.send("${actionName(command)}: ${outcome.message}")
+                // PSA refuses this service for this car: remember it so the control can say so.
+                if (outcome.refused) preferences.addRefusedCommand(vin, command.key())
+            }
+            CommandState.Pending -> {
+                _messages.send("${actionName(command)} — waiting for the car")
+                outcome.correlationId?.let { awaitPending(it) }
+            }
+        }
+    }
+
+    /**
+     * Follows a command the car hasn't answered yet. The event stream usually delivers the result
+     * first (see [onEvent]); this polls as well, for servers whose stream isn't reachable.
+     */
+    private fun awaitPending(correlationId: String) {
+        awaitedCommands += correlationId
+        viewModelScope.launch {
+            val deadline = System.currentTimeMillis() + COMMAND_FOLLOW_UP_MS
+            while (isActive && correlationId in awaitedCommands && System.currentTimeMillis() < deadline) {
+                delay(COMMAND_POLL_INTERVAL_MS)
+                if (correlationId !in awaitedCommands) return@launch
+                val outcome = repository.commandResult(correlationId).getOrNull() ?: continue
+                if (outcome.settled) {
+                    awaitedCommands -= correlationId
+                    report(outcome)
+                    vin()?.let { loadStatus(it, fromCache = true, showErrors = false) }
+                    return@launch
+                }
+            }
+            awaitedCommands -= correlationId
+        }
+    }
+
+    private suspend fun report(outcome: CommandOutcome) {
+        _messages.send(outcome.message)
+        val vin = vin()
+        val command = outcome.action?.let { action -> ALL_COMMANDS.firstOrNull { it.matchesAction(action) } }
+        if (outcome.refused && vin != null && command != null) preferences.addRefusedCommand(vin, command.key())
     }
 
     fun setChargeThreshold(percent: Int) = updateChargeControl { repository.setChargeThreshold(it, percent) }
@@ -188,12 +324,21 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun successMessage(command: CarCommand): String = when (command) {
-        CarCommand.WakeUp -> "Asked the car for fresh data — it can take a minute to arrive"
-        is CarCommand.Preconditioning -> if (command.on) "Starting climate control" else "Stopping climate control"
-        is CarCommand.Lock -> if (command.locked) "Locking the doors" else "Unlocking the doors"
-        CarCommand.Horn -> "Honking"
-        CarCommand.Lights -> "Flashing the lights"
-        is CarCommand.Charge -> if (command.start) "Starting to charge" else "Stopping the charge"
+        CarCommand.WakeUp -> "The car is sending fresh data"
+        is CarCommand.Preconditioning -> if (command.on) "Climate control started" else "Climate control stopped"
+        is CarCommand.Lock -> if (command.locked) "Doors locked" else "Doors unlocked"
+        CarCommand.Horn -> "The car honked"
+        CarCommand.Lights -> "The lights flashed"
+        is CarCommand.Charge -> if (command.start) "Charging started" else "Charging stopped"
+    }
+
+    private fun actionName(command: CarCommand): String = when (command) {
+        CarCommand.WakeUp -> "Update"
+        is CarCommand.Preconditioning -> "Climate"
+        is CarCommand.Lock -> if (command.locked) "Lock" else "Unlock"
+        CarCommand.Horn -> "Horn"
+        CarCommand.Lights -> "Lights"
+        is CarCommand.Charge -> if (command.start) "Charge" else "Stop charging"
     }
 
     override fun onCleared() {
@@ -203,5 +348,23 @@ class DashboardViewModel @Inject constructor(
     private companion object {
         const val AUTO_REFRESH_MS = 60_000L
         const val POST_COMMAND_REFRESH_MS = 30_000L
+
+        /** The car usually answers within ~30 s; hold the request for part of that, then follow up. */
+        const val COMMAND_WAIT_SECONDS = 10
+        const val COMMAND_FOLLOW_UP_MS = 120_000L
+        const val COMMAND_POLL_INTERVAL_MS = 3_000L
+
+        const val EVENT_RETRY_MIN_MS = 2_000L
+        const val EVENT_RETRY_MAX_MS = 60_000L
+        const val EVENT_REFRESH_THROTTLE_MS = 30_000L
+
+        val ALL_COMMANDS = listOf(
+            CarCommand.WakeUp,
+            CarCommand.Preconditioning(true),
+            CarCommand.Lock(true),
+            CarCommand.Horn,
+            CarCommand.Lights,
+            CarCommand.Charge(true),
+        )
     }
 }

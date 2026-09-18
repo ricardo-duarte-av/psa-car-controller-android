@@ -58,13 +58,14 @@ fun DashboardScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item(key = "hero") {
-                        HeroCard(status = s, lengthUnit = state.settings.lengthUnit)
+                        HeroCard(status = s, lengthUnit = state.settings.lengthUnit, live = state.live)
                     }
                     item(key = "controls-header") { SectionHeader("Controls") }
                     item(key = "controls") {
                         ControlsSection(
                             status = s,
                             pending = state.pendingCommands,
+                            unavailable = state.refusedCommands,
                             onCommand = viewModel::send,
                         )
                     }

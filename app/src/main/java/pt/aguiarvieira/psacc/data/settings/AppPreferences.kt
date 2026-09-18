@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,24 @@ class AppPreferences @Inject constructor(
         context.dataStore.edit { prefs ->
             if (vin == null) prefs.remove(KEY_SELECTED_VIN) else prefs[KEY_SELECTED_VIN] = vin
         }
+    }
+
+    /**
+     * Commands PSA refused for a given car ("vin|command"), so the app can grey them out instead of
+     * making the user rediscover that e.g. remote door control isn't part of their subscription.
+     */
+    val refusedCommands: Flow<Set<String>> = context.dataStore.data
+        .map { it[KEY_REFUSED_COMMANDS] ?: emptySet() }
+        .distinctUntilChanged()
+
+    suspend fun addRefusedCommand(vin: String, commandKey: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_REFUSED_COMMANDS] = (prefs[KEY_REFUSED_COMMANDS] ?: emptySet()) + "$vin|$commandKey"
+        }
+    }
+
+    suspend fun clearRefusedCommands() {
+        context.dataStore.edit { it.remove(KEY_REFUSED_COMMANDS) }
     }
 
     val notificationSettings: Flow<NotificationSettings> = context.dataStore.data.map { p ->
@@ -80,6 +99,7 @@ class AppPreferences @Inject constructor(
 
     private companion object {
         val KEY_SELECTED_VIN = stringPreferencesKey("selected_vin")
+        val KEY_REFUSED_COMMANDS = stringSetPreferencesKey("refused_commands")
         val KEY_NOTIFY_ENABLED = booleanPreferencesKey("notify_enabled")
         val KEY_NOTIFY_INTERVAL = intPreferencesKey("notify_interval_minutes")
         val KEY_LAST_CHECK_AT = longPreferencesKey("last_check_at")

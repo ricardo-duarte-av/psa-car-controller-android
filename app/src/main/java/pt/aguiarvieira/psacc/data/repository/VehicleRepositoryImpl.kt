@@ -1,6 +1,7 @@
 package pt.aguiarvieira.psacc.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +18,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import pt.aguiarvieira.psacc.data.auth.ConnectionRepository
+import pt.aguiarvieira.psacc.data.network.EventSourceClient
 import pt.aguiarvieira.psacc.data.network.PsaccClient
 import pt.aguiarvieira.psacc.data.network.PsaccException
 import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
@@ -29,6 +31,9 @@ import pt.aguiarvieira.psacc.data.settings.AppPreferences
 import pt.aguiarvieira.psacc.domain.model.CarCommand
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
+import pt.aguiarvieira.psacc.domain.model.CommandOutcome
+import pt.aguiarvieira.psacc.domain.model.PsaccEvent
+import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
 import pt.aguiarvieira.psacc.domain.model.HourMinute
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
@@ -42,6 +47,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class VehicleRepositoryImpl @Inject constructor(
     private val connection: ConnectionRepository,
     private val client: PsaccClient,
+    private val eventSourceClient: EventSourceClient,
     private val preferences: AppPreferences,
     private val json: Json,
 ) : VehicleRepository {
@@ -64,6 +70,7 @@ class VehicleRepositoryImpl @Inject constructor(
     }
 
     override fun clear() {
+        _capabilities.value = ServerCapabilities.Basic
         _vehicles.value = emptyList()
         _serverSettings.value = ServerSettings.Default
     }
@@ -110,7 +117,7 @@ class VehicleRepositoryImpl @Inject constructor(
         requireCommandSuccess(reply)
     }
 
-    override suspend fun send(vin: String, command: CarCommand) = call {
+    override suspend fun send(vin: String, command: CarCommand, waitSeconds: Int) = call {
         val path = when (command) {
             CarCommand.WakeUp -> listOf("wakeup", vin)
             is CarCommand.Preconditioning -> listOf("preconditioning", vin, command.on.bit())
@@ -119,8 +126,37 @@ class VehicleRepositoryImpl @Inject constructor(
             CarCommand.Lights -> listOf("lights", vin, LIGHTS_SECONDS.toString())
             is CarCommand.Charge -> listOf("charge_now", vin, command.start.bit())
         }
-        requireCommandSuccess(client.getJson(config(), path))
+        // Only ask the daemon to hold the request open when it knows how to answer.
+        val query = if (waitSeconds > 0 && _capabilities.value.commandResults) {
+            mapOf("wait" to waitSeconds.coerceAtMost(MAX_COMMAND_WAIT_SECONDS).toString())
+        } else {
+            emptyMap()
+        }
+        parseCommandReply(client.getJson(config(), path, query))
     }
+
+    override suspend fun commandResult(correlationId: String): Result<CommandOutcome?> = call {
+        try {
+            parseCommandReply(client.getJson(config(), listOf("command", correlationId)))
+        } catch (e: PsaccException.Http) {
+            // 404: the daemon restarted, or it is the stock one with no such endpoint.
+            if (e.code == 404) null else throw e
+        }
+    }
+
+    private val _capabilities = MutableStateFlow(ServerCapabilities.Basic)
+    override val capabilities: StateFlow<ServerCapabilities> = _capabilities.asStateFlow()
+
+    override suspend fun refreshCapabilities(): ServerCapabilities {
+        // /commands exists only on the fork that reports command results and streams events.
+        val supported = runCatching { client.getJson(config(), listOf("commands")) }.isSuccess
+        return ServerCapabilities(commandResults = supported, events = supported)
+            .also { _capabilities.value = it }
+    }
+
+    override fun events(): Flow<PsaccEvent> = eventSourceClient
+        .events(connection.config.value ?: throw PsaccException.NotConfigured())
+        .mapNotNull { frame -> frame.toEvent(json) }
 
     override suspend fun trips(): Result<List<Trip>> = call {
         // An empty history comes back as {} rather than [].
@@ -149,6 +185,9 @@ class VehicleRepositoryImpl @Inject constructor(
     private companion object {
         const val HORN_COUNT = 1
         const val LIGHTS_SECONDS = 10
+
+        /** The daemon caps `?wait=` at 30 s. */
+        const val MAX_COMMAND_WAIT_SECONDS = 30
     }
 }
 

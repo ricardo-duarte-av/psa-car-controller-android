@@ -3,6 +3,10 @@ package pt.aguiarvieira.psacc.data.repository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import pt.aguiarvieira.psacc.domain.model.CarCommand
+import pt.aguiarvieira.psacc.domain.model.CommandOutcome
+import pt.aguiarvieira.psacc.domain.model.CommandState
+import pt.aguiarvieira.psacc.domain.model.PsaccEvent
+import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
 import pt.aguiarvieira.psacc.domain.model.HourMinute
@@ -43,7 +47,22 @@ interface VehicleRepository {
     suspend fun setChargeStop(vin: String, stopAt: HourMinute?): Result<ChargeControlSettings?>
     suspend fun setScheduledChargeStart(vin: String, at: HourMinute): Result<Unit>
 
-    suspend fun send(vin: String, command: CarCommand): Result<Unit>
+    /**
+     * Sends a remote command. On a daemon that reports results, waits up to [waitSeconds] for the
+     * car's answer; otherwise returns [CommandState.Sent] as soon as it is queued.
+     */
+    suspend fun send(vin: String, command: CarCommand, waitSeconds: Int = 0): Result<CommandOutcome>
+
+    /** Re-reads a pending command's result; null when the server has never heard of it. */
+    suspend fun commandResult(correlationId: String): Result<CommandOutcome?>
+
+    /** What this server supports; probed once per connection, [ServerCapabilities.Basic] until then. */
+    val capabilities: StateFlow<ServerCapabilities>
+
+    suspend fun refreshCapabilities(): ServerCapabilities
+
+    /** Live events from the daemon's stream. Fails when the connection drops; callers retry. */
+    fun events(): Flow<PsaccEvent>
 
     /** PSACC only records trips for its first vehicle. */
     suspend fun trips(): Result<List<Trip>>
