@@ -28,6 +28,7 @@ data class SettingsUiState(
     val serverSettings: ServerSettings = ServerSettings.Default,
     val notifications: NotificationSettings = NotificationSettings(),
     val lastCheck: LastCheck? = null,
+    val fuelPricePerLitre: Double = 0.0,
 )
 
 @HiltViewModel
@@ -40,7 +41,8 @@ class SettingsViewModel @Inject constructor(
     private val notifier: VehicleNotifier,
 ) : ViewModel() {
 
-    val state: StateFlow<SettingsUiState> = combine(
+    // combine caps at 5 flows; nest the 6th (fuel price) on top of the first five.
+    private val base = combine(
         connection.config,
         repository.vehicles,
         repository.serverSettings,
@@ -48,6 +50,10 @@ class SettingsViewModel @Inject constructor(
         preferences.lastCheck,
     ) { config, vehicles, settings, notifications, lastCheck ->
         SettingsUiState(config, vehicles, settings, notifications, lastCheck)
+    }
+
+    val state: StateFlow<SettingsUiState> = combine(base, preferences.fuelPricePerLitre) { s, fuelPrice ->
+        s.copy(fuelPricePerLitre = fuelPrice)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState(connection.config.value))
 
     /** Whether the system currently lets the app post (permission granted and not blocked). */
@@ -70,6 +76,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun checkNow() = scheduler.checkNow()
+
+    fun setFuelPrice(price: Double) {
+        viewModelScope.launch { preferences.setFuelPricePerLitre(price) }
+    }
 
     /** Forgets which controls PSA refused, so they can be tried again (e.g. after a subscription change). */
     fun resetUnavailableControls() {

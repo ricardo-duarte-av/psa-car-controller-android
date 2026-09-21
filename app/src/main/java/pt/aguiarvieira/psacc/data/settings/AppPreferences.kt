@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -29,6 +30,15 @@ class AppPreferences @Inject constructor(
 ) {
     /** VIN of the vehicle the user last picked (multi-car accounts). */
     val selectedVin: Flow<String?> = context.dataStore.data.map { it[KEY_SELECTED_VIN] }
+
+    /** Petrol price per litre for estimating trip fuel cost. 0 = not set (kept only on this device). */
+    val fuelPricePerLitre: Flow<Double> = context.dataStore.data
+        .map { it[KEY_FUEL_PRICE] ?: 0.0 }
+        .distinctUntilChanged()
+
+    suspend fun setFuelPricePerLitre(price: Double) {
+        context.dataStore.edit { it[KEY_FUEL_PRICE] = price.coerceAtLeast(0.0) }
+    }
 
     suspend fun setSelectedVin(vin: String?) {
         context.dataStore.edit { prefs ->
@@ -99,6 +109,7 @@ class AppPreferences @Inject constructor(
 
     private companion object {
         val KEY_SELECTED_VIN = stringPreferencesKey("selected_vin")
+        val KEY_FUEL_PRICE = doublePreferencesKey("fuel_price_per_litre")
         val KEY_REFUSED_COMMANDS = stringSetPreferencesKey("refused_commands")
         val KEY_NOTIFY_ENABLED = booleanPreferencesKey("notify_enabled")
         val KEY_NOTIFY_INTERVAL = intPreferencesKey("notify_interval_minutes")

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pt.aguiarvieira.psacc.data.repository.VehicleRepository
+import pt.aguiarvieira.psacc.data.settings.AppPreferences
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.ui.components.ContentState
@@ -39,18 +40,23 @@ data class TripsUiState(
     val settings: ServerSettings = ServerSettings.Default,
     /** True when the trips came from PSA itself, which serves them for every vehicle. */
     val perVehicle: Boolean = false,
+    /** Local petrol price per litre (0 = unset). */
+    val fuelPricePerLitre: Double = 0.0,
 )
 
 @HiltViewModel
 class TripsViewModel @Inject constructor(
     private val repository: VehicleRepository,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
 
     private val content = MutableStateFlow(TripsUiState())
     private var vin: String? = null
 
-    val state: StateFlow<TripsUiState> = combine(content, repository.serverSettings) { s, settings ->
-        s.copy(settings = settings)
+    val state: StateFlow<TripsUiState> = combine(
+        content, repository.serverSettings, preferences.fuelPricePerLitre,
+    ) { s, settings, fuelPrice ->
+        s.copy(settings = settings, fuelPricePerLitre = fuelPrice)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsUiState())
 
     init {

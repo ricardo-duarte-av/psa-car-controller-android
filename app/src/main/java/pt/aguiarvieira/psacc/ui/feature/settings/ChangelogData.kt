@@ -21,6 +21,16 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.8",
+        date = "21/09/2026",
+        changes = listOf(
+            "The battery level and range on the Car tab now come from the car's live reading, which " +
+                "is more reliable than PSA's summary (which sometimes showed 100% on an empty battery).",
+            "Trips can show an estimated fuel cost: set a petrol price per litre in Settings " +
+                "(kept only on your device).",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.7",
         date = "21/09/2026",
         changes = listOf(

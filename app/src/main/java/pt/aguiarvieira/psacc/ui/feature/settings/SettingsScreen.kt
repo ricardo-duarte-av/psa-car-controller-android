@@ -22,6 +22,12 @@ import pt.aguiarvieira.psacc.notifications.LastCheck
 import pt.aguiarvieira.psacc.notifications.NotificationCategory
 import pt.aguiarvieira.psacc.notifications.NotificationSettings
 import java.time.Instant
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -162,6 +168,14 @@ fun SettingsScreen(
                     text = "Edit these in PSA Car Controller's web interface.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                HorizontalDivider()
+                SectionTitle("Petrol price")
+                FuelPriceField(
+                    price = state.fuelPricePerLitre,
+                    currency = state.serverSettings.currency,
+                    onPriceChange = viewModel::setFuelPrice,
                 )
 
                 SettingsRow(
@@ -369,4 +383,29 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheck
         }
         Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
     }
+}
+
+@Composable
+private fun FuelPriceField(price: Double, currency: String, onPriceChange: (Double) -> Unit) {
+    // Local draft so typing is smooth; parsed and saved on each edit. Kept only on this device.
+    var text by rememberSaveable(price) {
+        mutableStateOf(if (price > 0) "%.3f".format(java.util.Locale.US, price) else "")
+    }
+    OutlinedTextField(
+        value = text,
+        onValueChange = {
+            text = it
+            onPriceChange(it.replace(',', '.').toDoubleOrNull() ?: 0.0)
+        },
+        label = { Text("Price per litre ($currency)") },
+        placeholder = { Text("e.g. 1.859") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        text = "Used to estimate the fuel cost of trips. Stored only on this device.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

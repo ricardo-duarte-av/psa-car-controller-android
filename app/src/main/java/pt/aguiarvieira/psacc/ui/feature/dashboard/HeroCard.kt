@@ -50,9 +50,11 @@ fun HeroCard(
     modifier: Modifier = Modifier,
     live: PsaccEvent.VehicleUpdate? = null,
 ) {
-    // The stream pushes battery and range within seconds; the polled status can be a minute behind.
-    // Only these two are corroborated by the API — plug and charge state stay with the status.
-    val fresher = live != null && (status.updatedAt == null || live.at == null || live.at >= status.updatedAt)
+    // The live MQTT event carries the car's own reported state of charge (soc_batt), which is more
+    // reliable than the status API's `level` — PSA has been seen reporting level 100 with 0 km of
+    // range on an empty battery, while the event correctly said 0. So the battery figures come from
+    // the event whenever one is present (Car tab); plug and charge state stay with the status.
+    val fresher = live != null && live.batteryLevel != null
     val electricOverride = status.electric?.takeIf { fresher }?.copy(
         levelPercent = live?.batteryLevel ?: status.electric.levelPercent,
         rangeKm = live?.autonomy ?: status.electric.rangeKm,

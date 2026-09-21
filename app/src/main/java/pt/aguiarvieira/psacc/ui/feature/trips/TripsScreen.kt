@@ -129,7 +129,7 @@ fun TripsScreen(
                                 SectionHeader(day.date?.let { Formatters.day(it.atStartOfDay(ZoneId.systemDefault()).toInstant()) } ?: "Unknown date")
                             }
                             items(day.trips, key = { "trip-${it.id}" }) { trip ->
-                                TripCard(trip, state.settings, onClick = { openTripId = trip.id })
+                                TripCard(trip, state.settings, state.fuelPricePerLitre, onClick = { openTripId = trip.id })
                             }
                         }
                     }
@@ -141,7 +141,7 @@ fun TripsScreen(
     val openTrip = (state.trips as? ContentState.Data)?.value?.flatMap { it.trips }?.firstOrNull { it.id == openTripId }
     if (openTrip != null) {
         ModalBottomSheet(onDismissRequest = { openTripId = null }) {
-            TripDetail(openTrip, state.settings)
+            TripDetail(openTrip, state.settings, state.fuelPricePerLitre)
         }
     }
 }
@@ -189,7 +189,7 @@ private fun Metric(value: String, label: String) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) {
+private fun TripCard(trip: Trip, settings: ServerSettings, fuelPrice: Double, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -223,6 +223,7 @@ private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) 
                         batteryUsed(trip),
                         trip.kwhPer100?.takeIf { it > 0 }?.let { "${Formatters.number(it, 1)} kWh/100" },
                         trip.litresPer100?.takeIf { it > 0 }?.let { "${Formatters.number(it, 1)} L/100" },
+                        fuelCost(trip, fuelPrice, settings),
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -235,6 +236,13 @@ private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) 
 /**
  * "95% → 93%", or just "95%" when PSA gives no distinct end level (it usually copies the start one).
  */
+/** Estimated petrol cost from the locally-set price per litre; null when no price or no fuel used. */
+private fun fuelCost(trip: Trip, pricePerLitre: Double, settings: ServerSettings): String? {
+    val litres = trip.fuelLitres?.takeIf { it > 0 } ?: return null
+    if (pricePerLitre <= 0) return null
+    return Formatters.money(litres * pricePerLitre, settings.currency)
+}
+
 private fun batteryUsed(trip: Trip): String? {
     val start = trip.startBatteryPercent ?: return null
     val end = trip.endBatteryPercent ?: return "battery ${Formatters.percent(start)}"
@@ -243,7 +251,7 @@ private fun batteryUsed(trip: Trip): String? {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun TripDetail(trip: Trip, settings: ServerSettings) {
+private fun TripDetail(trip: Trip, settings: ServerSettings, fuelPrice: Double) {
     val context = LocalContext.current
     Column(
         modifier = Modifier
@@ -316,8 +324,10 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
             trip.litresPer100?.takeIf { it > 0 }?.let {
                 add(Triple(Icons.Filled.LocalGasStation, "Fuel", "${Formatters.number(it, 1)} L/100"))
             }
-            trip.fuelLitres?.takeIf { it > 0 }?.let {
-                add(Triple(Icons.Filled.LocalGasStation, "Petrol used", "${Formatters.number(it, 2)} L"))
+            trip.fuelLitres?.takeIf { it > 0 }?.let { litres ->
+                val used = "${Formatters.number(litres, 2)} L"
+                val withCost = fuelCost(trip, fuelPrice, settings)?.let { "$used · $it" } ?: used
+                add(Triple(Icons.Filled.LocalGasStation, "Petrol used", withCost))
             }
             trip.maxSpeed?.let { add(Triple(Icons.Filled.Speed, "Top speed", "${it.toInt()} ${settings.lengthUnit}/h")) }
             batteryUsed(trip)?.let { add(Triple(Icons.Filled.BatteryChargingFull, "Battery", it)) }
