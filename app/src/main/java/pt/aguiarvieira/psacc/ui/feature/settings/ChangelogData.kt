@@ -21,6 +21,20 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.7",
+        date = "21/09/2026",
+        changes = listOf(
+            "Fixed the trip figures: fuel consumption and average speed were shown in the wrong " +
+                "units (a 59 km/h trip read as 17 km/h, and consumption was 100 times too high).",
+            "A trip only shows a battery or fuel level for the end of the trip when the car " +
+                "actually reports one.",
+            "Opening the app now refreshes the car by itself when the data is more than five " +
+                "minutes old, instead of waiting for a pull to refresh.",
+            "The Car tab now shows photos of your car — the official renders in its real colour and " +
+                "trim — as a swipeable gallery.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.6",
         date = "18/09/2026",
         changes = listOf(

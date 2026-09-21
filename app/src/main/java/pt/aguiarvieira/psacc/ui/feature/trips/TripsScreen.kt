@@ -232,10 +232,12 @@ private fun TripCard(trip: Trip, settings: ServerSettings, onClick: () -> Unit) 
     }
 }
 
-/** "95% → 93%" when the server reports PSA's own trips, which carry the levels at both ends. */
+/**
+ * "95% → 93%", or just "95%" when PSA gives no distinct end level (it usually copies the start one).
+ */
 private fun batteryUsed(trip: Trip): String? {
     val start = trip.startBatteryPercent ?: return null
-    val end = trip.endBatteryPercent ?: return null
+    val end = trip.endBatteryPercent ?: return "battery ${Formatters.percent(start)}"
     return "${Formatters.percent(start)} → ${Formatters.percent(end)}"
 }
 
@@ -314,15 +316,15 @@ private fun TripDetail(trip: Trip, settings: ServerSettings) {
             trip.litresPer100?.takeIf { it > 0 }?.let {
                 add(Triple(Icons.Filled.LocalGasStation, "Fuel", "${Formatters.number(it, 1)} L/100"))
             }
+            trip.fuelLitres?.takeIf { it > 0 }?.let {
+                add(Triple(Icons.Filled.LocalGasStation, "Petrol used", "${Formatters.number(it, 2)} L"))
+            }
             trip.maxSpeed?.let { add(Triple(Icons.Filled.Speed, "Top speed", "${it.toInt()} ${settings.lengthUnit}/h")) }
             batteryUsed(trip)?.let { add(Triple(Icons.Filled.BatteryChargingFull, "Battery", it)) }
-            if (trip.startFuelPercent != null && trip.endFuelPercent != null) {
-                add(
-                    Triple(
-                        Icons.Filled.LocalGasStation, "Fuel",
-                        "${Formatters.percent(trip.startFuelPercent)} → ${Formatters.percent(trip.endFuelPercent)}",
-                    ),
-                )
+            trip.startFuelPercent?.let { start ->
+                val value = trip.endFuelPercent?.let { "${Formatters.percent(start)} → ${Formatters.percent(it)}" }
+                    ?: Formatters.percent(start)
+                add(Triple(Icons.Filled.LocalGasStation, "Fuel", value))
             }
             trip.temperatureC?.let { add(Triple(Icons.Filled.Thermostat, "Temperature", Formatters.temperature(it))) }
             trip.altitudeDiff?.let { add(Triple(Icons.Filled.Height, "Elevation change", "${if (it > 0) "+" else ""}${it.toInt()} m")) }

@@ -23,6 +23,7 @@ import pt.aguiarvieira.psacc.data.network.PsaccClient
 import pt.aguiarvieira.psacc.data.network.PsaccException
 import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
 import pt.aguiarvieira.psacc.data.network.dto.MaintenanceDto
+import pt.aguiarvieira.psacc.data.network.dto.PicturesDto
 import pt.aguiarvieira.psacc.data.network.dto.PsaTripDto
 import pt.aguiarvieira.psacc.data.network.dto.ServerSettingsDto
 import pt.aguiarvieira.psacc.data.network.dto.SohDto
@@ -190,6 +191,16 @@ class VehicleRepositoryImpl @Inject constructor(
         runCatching {
             client.get(config(), MaintenanceDto.serializer(), listOf("vehicles", vin, "maintenance")).toDomain()
         }.getOrNull()
+    }
+
+    override suspend fun pictures(vin: String): Result<List<String>> = call {
+        val config = config()
+        runCatching {
+            client.get(config, PicturesDto.serializer(), listOf("vehicles", vin, "pictures"))
+                .pictures
+                // The daemon returns paths relative to its base url; make them absolute.
+                .map { "${config.baseUrl.trimEnd('/')}/${it.trimStart('/')}" }
+        }.getOrDefault(emptyList())
     }
 
     override suspend fun chargingSessions(vin: String): Result<List<ChargingSession>> = call {

@@ -40,6 +40,9 @@ import pt.aguiarvieira.psacc.domain.model.VehicleStatus
 import pt.aguiarvieira.psacc.util.PsaccTime
 import java.time.Duration
 
+private const val MS_TO_KMH = 3.6
+private const val CL_PER_LITRE = 100.0
+
 private val INACTIVE_PRECONDITIONING = listOf("Disabled", "Finished", "Failure")
 
 internal fun VehicleDto.toDomain() = Vehicle(
@@ -174,27 +177,39 @@ internal fun PsaTripDto.toDomain(index: Int): Trip {
     fun consumption(type: String) =
         energyConsumptions?.firstOrNull { it.type.equals(type, ignoreCase = true) }
 
-    val electric = consumption("Electric")
-    val fuel = consumption("Fuel")
+    val fuel = energyConsumptions?.firstOrNull { it.type.equals("Fuel", ignoreCase = true) }
     val route = listOfNotNull(startPosition?.toLatLng(), stopPosition?.toLatLng())
+    // PSA copies startEnergies into endEnergies (both ends always identical on the test car), so an
+    // end level is only real when it differs.
+    val startElectric = level(startEnergies, "Electric")
+    val endElectric = level(endEnergies, "Electric")?.takeIf { it != startElectric }
+    val startFuel = level(startEnergies, "Fuel")
+    val endFuel = level(endEnergies, "Fuel")?.takeIf { it != startFuel }
     return Trip(
         id = id?.hashCode() ?: index,
         startAt = PsaccTime.parseInstant(startedAt),
         duration = duration?.let { Duration.ofSeconds(it.toLong()) },
         distance = distance,
         odometer = startMileage,
-        averageSpeed = kinetic?.avgSpeed,
-        energyKwh = electric?.consumption,
-        kwhPer100 = electric?.avgConsumption,
-        litresPer100 = fuel?.avgConsumption,
+        // PSA reports speed in m/s: 16.53 for a trip of 20.5 km in 20.7 min, which is 59 km/h.
+        averageSpeed = kinetic?.avgSpeed?.let { it * MS_TO_KMH },
+        // Fuel is reported in centilitres, checked against the car's own trip computer: a 20.5 km
+        // trip answered consumption 32.184 / avgConsumption 156.995, which the car displayed as
+        // 0.3 L and 1.4 L/100 km. PSA reports no Electric entry on this car, so the electric
+        // figures stay with PSACC's own trips, which derive them from the battery levels.
+        energyKwh = null,
+        kwhPer100 = null,
+        litresPer100 = fuel?.avgConsumption?.let { it / CL_PER_LITRE },
         temperatureC = null,
         altitudeDiff = null,
         route = route,
-        startBatteryPercent = level(startEnergies, "Electric"),
-        endBatteryPercent = level(endEnergies, "Electric"),
-        startFuelPercent = level(startEnergies, "Fuel"),
-        endFuelPercent = level(endEnergies, "Fuel"),
-        maxSpeed = kinetic?.maxSpeed?.takeIf { it > 0 },
+        startBatteryPercent = startElectric,
+        endBatteryPercent = endElectric,
+        startFuelPercent = startFuel,
+        endFuelPercent = endFuel,
+        // maxSpeed is 0.0 on every trip of the test car, i.e. not reported.
+        maxSpeed = kinetic?.maxSpeed?.takeIf { it > 0 }?.let { it * MS_TO_KMH },
+        fuelLitres = fuel?.consumption?.let { it / CL_PER_LITRE },
     )
 }
 

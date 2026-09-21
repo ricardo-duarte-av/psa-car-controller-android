@@ -22,6 +22,8 @@ data class Trip(
     val startFuelPercent: Double? = null,
     val endFuelPercent: Double? = null,
     val maxSpeed: Double? = null,
+    /** Litres actually burnt over the trip, when PSA reports them. */
+    val fuelLitres: Double? = null,
 ) {
     val endAt: Instant? get() = if (startAt != null && duration != null) startAt.plus(duration) else null
 

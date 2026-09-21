@@ -36,6 +36,7 @@ fun DashboardScreen(
         viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
     }
     LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
         viewModel.startAutoRefresh()
         onPauseOrDispose { viewModel.stopAutoRefresh() }
     }
@@ -57,6 +58,9 @@ fun DashboardScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    if (state.pictures.isNotEmpty()) {
+                        item(key = "gallery") { CarGallery(pictures = state.pictures) }
+                    }
                     item(key = "hero") {
                         HeroCard(status = s, lengthUnit = state.settings.lengthUnit, live = state.live)
                     }

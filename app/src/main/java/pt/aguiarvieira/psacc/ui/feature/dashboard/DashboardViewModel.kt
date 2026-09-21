@@ -37,6 +37,8 @@ import pt.aguiarvieira.psacc.domain.model.Vehicle
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
 import pt.aguiarvieira.psacc.ui.components.ContentState
 import pt.aguiarvieira.psacc.ui.components.userMessage
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 
 data class DashboardUiState(
@@ -47,6 +49,8 @@ data class DashboardUiState(
     val batterySoh: Double? = null,
     /** Next service, when the server serves it. */
     val maintenance: Maintenance? = null,
+    /** Daemon URLs of the car's pictures. */
+    val pictures: List<String> = emptyList(),
     /** Null when PSACC's charge control isn't configured for this car. */
     val chargeControl: ChargeControlSettings? = null,
     /** Commands awaiting PSACC's reply, so their buttons can show progress. */
@@ -120,6 +124,9 @@ class DashboardViewModel @Inject constructor(
                 repository.maintenance(vin).onSuccess { m -> _state.update { it.copy(maintenance = m) } }
             }
             launch {
+                repository.pictures(vin).onSuccess { p -> _state.update { it.copy(pictures = p) } }
+            }
+            launch {
                 repository.chargeControl(vin).onSuccess { cc -> _state.update { it.copy(chargeControl = cc) } }
             }
         }
@@ -138,6 +145,25 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             loadStatus(vin, fromCache = false, showErrors = true)
             _state.update { it.copy(refreshing = false) }
+        }
+    }
+
+    /**
+     * Called whenever the dashboard comes to the front. Reads PSACC's cache straight away, and when
+     * that data is old enough to be worth a round trip to PSA, refreshes it for real — so opening
+     * the app shows current data without pulling down.
+     */
+    fun onResumed() {
+        val vin = vin() ?: return
+        viewModelScope.launch {
+            loadStatus(vin, fromCache = true, showErrors = false)
+            val age = (_state.value.status as? ContentState.Data)?.value?.updatedAt
+                ?.let { Duration.between(it, Instant.now()).toMillis() }
+            if (age == null || age > STALE_STATUS_MS) {
+                _state.update { it.copy(refreshing = true) }
+                loadStatus(vin, fromCache = false, showErrors = false)
+                _state.update { it.copy(refreshing = false) }
+            }
         }
     }
 
@@ -372,6 +398,9 @@ class DashboardViewModel @Inject constructor(
         const val EVENT_RETRY_MIN_MS = 2_000L
         const val EVENT_RETRY_MAX_MS = 60_000L
         const val EVENT_REFRESH_THROTTLE_MS = 30_000L
+
+        /** Older than this when the dashboard opens, and it's worth asking PSA rather than the cache. */
+        const val STALE_STATUS_MS = 5 * 60 * 1000L
 
         val ALL_COMMANDS = listOf(
             CarCommand.WakeUp,

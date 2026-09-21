@@ -95,8 +95,8 @@ class MappersTest {
               "startEnergies":[{"type":"Fuel","level":63.0,"autonomy":290},
                                {"type":"Electric","level":95.0,"autonomy":40}],
               "endEnergies":[{"type":"Fuel","level":63.0},{"type":"Electric","level":78.0}],
-              "energyConsumptions":[{"type":"Electric","consumption":1.9,"avgConsumption":18.5}],
-              "kinetic":{"avgSpeed":36.0,"maxSpeed":72.0},
+              "energyConsumptions":[{"type":"Fuel","consumption":32.184,"avgConsumption":156.995}],
+              "kinetic":{"avgSpeed":16.53,"maxSpeed":0.0},
               "startPosition":{"geometry":{"coordinates":[-9.14,38.72]}},
               "stopPosition":{"geometry":{"coordinates":[-9.12,38.74]}}}]
         """.trimIndent()
@@ -110,9 +110,18 @@ class MappersTest {
         assertEquals(95.0, trip.startBatteryPercent!!, 0.0)
         assertEquals(78.0, trip.endBatteryPercent!!, 0.0)
         assertEquals(63.0, trip.startFuelPercent!!, 0.0)
-        assertEquals(18.5, trip.kwhPer100!!, 0.0)
-        assertEquals(1.9, trip.energyKwh!!, 0.0)
-        assertEquals(72.0, trip.maxSpeed!!, 0.0)
+        // PSA copies the start level into endEnergies, so an identical value means "not reported"
+        assertNull(trip.endFuelPercent)
+        // centilitres, checked against the car's trip computer (0.3 L / 1.4 L/100 km)
+        assertEquals(1.57, trip.litresPer100!!, 0.01)
+        assertEquals(0.32, trip.fuelLitres!!, 0.01)
+        // PSA sends no Electric entry; those figures come from PSACC's own trips
+        assertNull(trip.kwhPer100)
+        assertNull(trip.energyKwh)
+        // m/s in, km/h out: 16.53 m/s is the 59 km/h of a real 20.5 km trip
+        assertEquals(59.5, trip.averageSpeed!!, 0.1)
+        // maxSpeed is reported as 0.0, i.e. not measured
+        assertNull(trip.maxSpeed)
         // two endpoints, no intermediate points: a line, and enough to count as a route
         assertEquals(2, trip.route.size)
         assertTrue(trip.hasRoute)

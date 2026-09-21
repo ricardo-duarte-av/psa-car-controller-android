@@ -73,5 +73,8 @@ interface VehicleRepository {
 
     /** Distance and days before the next service; null when the server doesn't serve it. */
     suspend fun maintenance(vin: String): Result<Maintenance?>
+
+    /** Absolute URLs (on the daemon) of the car's pictures; empty when the server serves none. */
+    suspend fun pictures(vin: String): Result<List<String>>
     suspend fun chargingSessions(vin: String): Result<List<ChargingSession>>
 }

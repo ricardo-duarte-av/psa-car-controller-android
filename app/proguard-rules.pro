@@ -22,3 +22,7 @@
 
 # ---- Tink (via androidx.security-crypto) references compile-only Error Prone annotations ----
 -dontwarn com.google.errorprone.annotations.**
+
+# ---- Coil (network fetcher registered via ServiceLoader) ----
+-keep class coil3.util.** { *; }
+-dontwarn coil3.**
