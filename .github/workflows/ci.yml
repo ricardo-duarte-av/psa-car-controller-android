@@ -16,7 +16,12 @@ permissions:
 # release builds once (via the tag) instead of twice. Normal main/branch pushes each
 # have a unique SHA and are unaffected.
 concurrency:
-  group: ci-${{ github.sha }}
+  # Separate tag runs from branch runs. A release pushes `main` and then the `vX.Y.Z` tag on the
+  # same commit, so both runs share a SHA; keying only on the SHA let whichever started second
+  # cancel the other — including the tag run that does the Play upload + GitHub Release. Splitting
+  # by ref_type means the tag run has its own group and always runs to completion (and publishes),
+  # while branch pushes still supersede their own earlier runs. Cost: a release builds twice.
+  group: ci-${{ github.ref_type }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:
