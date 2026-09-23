@@ -86,7 +86,7 @@ class TripsViewModel @Inject constructor(
                             trips = ContentState.Data(groupByDay(trips)),
                             summary = summarize(trips),
                             refreshing = false,
-                            perVehicle = trips.any { trip -> trip.startBatteryPercent != null },
+                            perVehicle = trips.any { trip -> trip.startBatteryPercent != null || trip.startFuelPercent != null },
                         )
                     }
                 }

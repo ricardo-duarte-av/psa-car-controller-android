@@ -181,8 +181,8 @@ internal fun PsaTripDto.toDomain(index: Int): Trip {
     val route = listOfNotNull(startPosition?.toLatLng(), stopPosition?.toLatLng())
     // PSA copies startEnergies into endEnergies (both ends always identical on the test car), so an
     // end level is only real when it differs.
-    val startElectric = level(startEnergies, "Electric")
-    val endElectric = level(endEnergies, "Electric")?.takeIf { it != startElectric }
+    val startElectric = electricLevel(startEnergies)
+    val endElectric = electricLevel(endEnergies)?.takeIf { it != startElectric }
     val startFuel = level(startEnergies, "Fuel")
     val endFuel = level(endEnergies, "Fuel")?.takeIf { it != startFuel }
     return Trip(
@@ -212,6 +212,20 @@ internal fun PsaTripDto.toDomain(index: Int): Trip {
         fuelLitres = fuel?.consumption?.let { it / CL_PER_LITRE },
     )
 }
+
+/**
+ * The battery level of a PSA trip end, or null when it can't be trusted. With the battery flat PSA
+ * reports a range of 0 alongside a made-up level: 100% on three trips of 23/09/2026 driven just
+ * before a charge that started at 5%, and 51% a few seconds after a trip that started at 1%. Real
+ * low readings (1–9%) also come with a range of 0–2 km, so only a higher level is discarded.
+ */
+private fun electricLevel(energies: List<PsaTripEnergyDto>?): Double? {
+    val electric = energies?.firstOrNull { it.type.equals("Electric", ignoreCase = true) } ?: return null
+    val level = electric.level ?: return null
+    return if (electric.autonomy == 0.0 && level > MAX_LEVEL_WITHOUT_RANGE) null else level
+}
+
+private const val MAX_LEVEL_WITHOUT_RANGE = 10.0
 
 private fun PositionDto.toLatLng(): LatLng? {
     val coordinates = geometry?.coordinates

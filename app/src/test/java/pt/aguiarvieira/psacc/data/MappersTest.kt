@@ -138,6 +138,31 @@ class MappersTest {
     }
 
     @Test
+    fun `a psa battery level with no range is dropped unless it is low`() {
+        // 23/09/2026: 100% with a range of 0 on a trip driven just before a charge from 5%
+        val body = """
+            [{"id":"a","startedAt":"2026-09-23T09:34:49Z","duration":724,"distance":6.2,
+              "startEnergies":[{"type":"Fuel","level":36.0,"autonomy":165},
+                               {"type":"Electric","level":100.0,"autonomy":0}],
+              "endEnergies":[{"type":"Fuel","level":35.0,"autonomy":150},
+                             {"type":"Electric","level":100.0,"autonomy":0}]},
+             {"id":"b","startedAt":"2026-09-15T12:25:34Z","duration":300,"distance":0.8,
+              "startEnergies":[{"type":"Electric","level":5.0,"autonomy":0}]},
+             {"id":"c","startedAt":"2026-09-23T14:26:46Z","duration":197,"distance":0.2,
+              "startEnergies":[{"type":"Electric","level":100.0,"autonomy":42}]}]
+        """.trimIndent()
+        val (bogus, low, charged) = Fixtures.json.decodeFromString(ListSerializer(PsaTripDto.serializer()), body)
+            .mapIndexed { i, dto -> dto.toDomain(i) }
+
+        assertNull(bogus.startBatteryPercent)
+        assertNull(bogus.endBatteryPercent)
+        assertEquals(36.0, bogus.startFuelPercent!!, 0.0)
+        assertEquals(35.0, bogus.endFuelPercent!!, 0.0)
+        assertEquals(5.0, low.startBatteryPercent!!, 0.0)
+        assertEquals(100.0, charged.startBatteryPercent!!, 0.0)
+    }
+
+    @Test
     fun `maintenance decodes`() {
         val m = Fixtures.json.decodeFromString(
             MaintenanceDto.serializer(),
