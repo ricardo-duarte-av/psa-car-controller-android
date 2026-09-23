@@ -21,6 +21,13 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.23",
+        date = "23/09/2026",
+        changes = listOf(
+            "In step with server 0.1.23, whose web page has a new look with light and dark themes.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.22",
         date = "23/09/2026",
         changes = listOf(
