@@ -18,6 +18,11 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
     ChangelogVersion(
         version = null,
         date = null,
+        changes = emptyList(),
+    ),
+    ChangelogVersion(
+        version = "0.1.9",
+        date = "23/09/2026",
         changes = listOf(
             "Charging and plug notifications show the same battery level as the Car tab (the car's " +
                 "live reading) instead of PSA's summary, which could say 100% on a nearly empty battery.",
