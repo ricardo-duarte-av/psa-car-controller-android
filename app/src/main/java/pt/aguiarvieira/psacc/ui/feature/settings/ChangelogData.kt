@@ -18,6 +18,11 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
     ChangelogVersion(
         version = null,
         date = null,
+        changes = emptyList(),
+    ),
+    ChangelogVersion(
+        version = "0.1.11",
+        date = "23/09/2026",
         changes = listOf(
             "Trips use the server's merged trips when it has them: PSA's own trips with the battery " +
                 "levels, energy used, route and temperature the server recorded during them.",
