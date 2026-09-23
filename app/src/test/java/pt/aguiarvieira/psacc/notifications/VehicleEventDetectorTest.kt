@@ -28,10 +28,10 @@ class VehicleEventDetectorTest {
             doorLock = null, openDoors = emptyList(), privacy = null, serviceType = null, updatedAt = null,
         )
 
-    private fun trip(start: String) = Trip(
-        id = start.hashCode(), startAt = Instant.parse(start), duration = null, distance = 5.0, odometer = null,
+    private fun trip(start: String, distance: Double = 5.0, inProgress: Boolean = false) = Trip(
+        id = start.hashCode(), startAt = Instant.parse(start), duration = null, distance = distance, odometer = null,
         averageSpeed = null, energyKwh = null, kwhPer100 = null, litresPer100 = null, temperatureC = null,
-        altitudeDiff = null, route = emptyList(),
+        altitudeDiff = null, route = emptyList(), inProgress = inProgress,
     )
 
     private fun session(start: String, stop: String?) = ChargingSession(
@@ -135,6 +135,21 @@ class VehicleEventDetectorTest {
             snapshot(trips = listOf(trip("2026-09-16T09:00:00Z"), old)),
         )
         assertEquals(1, events.filterIsInstance<VehicleEvent.TripRecorded>().size)
+    }
+
+    @Test
+    fun `a trip being driven is reported once it's done, with its final figures`() {
+        val old = trip("2026-09-23T09:34:00Z")
+        val start = "2026-09-23T19:04:00Z"
+        var watch = VehicleEventDetector.detect(null, snapshot(trips = listOf(old))).watch
+        listOf(3.0, 5.5).forEach { soFar ->
+            val d = VehicleEventDetector.detect(watch, snapshot(trips = listOf(old, trip(start, soFar, inProgress = true))))
+            assertTrue(d.events.isEmpty())
+            watch = d.watch
+        }
+        val done = VehicleEventDetector.detect(watch, snapshot(trips = listOf(old, trip(start, 7.1))))
+        assertEquals(listOf(7.1), done.events.filterIsInstance<VehicleEvent.TripRecorded>().map { it.trip.distance })
+        assertTrue(VehicleEventDetector.detect(done.watch, snapshot(trips = listOf(old, trip(start, 7.1)))).events.isEmpty())
     }
 
     @Test

@@ -38,6 +38,8 @@ data class TripDto(
     @SerialName("end_level_fuel") val endLevelFuel: Double? = null,
     /** Litres burnt over the trip. */
     @SerialName("consumption_fuel") val consumptionFuel: Double? = null,
+    /** Still being driven: the end and the figures are the ones so far. Absent on stock PSACC. */
+    @SerialName("in_progress") val inProgress: Boolean = false,
 )
 
 @Serializable

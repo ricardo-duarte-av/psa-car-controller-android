@@ -208,11 +208,19 @@ private fun TripCard(trip: Trip, settings: ServerSettings, fuelPrice: Double, on
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    "${Formatters.time(trip.startAt)} – ${Formatters.time(trip.endAt)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (trip.inProgress) {
+                    Text(
+                        "${Formatters.time(trip.startAt)} – in progress",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Text(
+                        "${Formatters.time(trip.startAt)} – ${Formatters.time(trip.endAt)}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
                     Formatters.distance(trip.distance, settings.lengthUnit, decimals = 1),
                     style = MaterialTheme.typography.titleLargeEmphasized,
@@ -267,6 +275,14 @@ private fun TripDetail(trip: Trip, settings: ServerSettings, fuelPrice: Double) 
             style = MaterialTheme.typography.displaySmallEmphasized,
             color = MaterialTheme.colorScheme.primary,
         )
+        if (trip.inProgress) {
+            Text(
+                text = "In progress: these are the figures up to ${Formatters.time(trip.endAt)}, " +
+                    "they'll be final once the car stops.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         var fullScreenMap by rememberSaveable { mutableStateOf(false) }
         if (mapsAvailable && trip.route.isNotEmpty()) {
             TripRouteMap(

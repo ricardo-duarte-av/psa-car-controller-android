@@ -171,6 +171,7 @@ internal fun TripDto.toDomain(index: Int): Trip {
         // PSACC's own trips report 0 when they couldn't tell.
         fuelLitres = consumptionFuel?.takeIf { source != null },
         merged = source != null,
+        inProgress = inProgress,
     )
 }
 
@@ -218,6 +219,7 @@ internal fun PsaTripDto.toDomain(index: Int): Trip {
         // maxSpeed is 0.0 on every trip of the test car, i.e. not reported.
         maxSpeed = kinetic?.maxSpeed?.takeIf { it > 0 }?.let { it * MS_TO_KMH },
         fuelLitres = fuel?.consumption?.let { it / CL_PER_LITRE },
+        inProgress = done == false,
     )
 }
 

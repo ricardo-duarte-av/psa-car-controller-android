@@ -98,7 +98,10 @@ object VehicleEventDetector {
         }
 
         snapshot.trips?.let { trips ->
-            val starts = trips.mapNotNull { t -> t.startAt?.toEpochMilli()?.let { it to t } }
+            // A trip still being driven is reported (and the watch moved past it) once it's done.
+            val starts = trips
+                .filterNot { it.inProgress }
+                .mapNotNull { t -> t.startAt?.toEpochMilli()?.let { it to t } }
             if (prev.tripsBaselined) {
                 val newTrips = starts
                     .filter { (start, _) -> prev.lastTripStartMs == null || start > prev.lastTripStartMs }

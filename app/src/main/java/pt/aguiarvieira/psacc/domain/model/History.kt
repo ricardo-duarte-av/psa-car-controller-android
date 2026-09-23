@@ -26,6 +26,8 @@ data class Trip(
     val fuelLitres: Double? = null,
     /** From the forked daemon's merged trips, which exist per vehicle. */
     val merged: Boolean = false,
+    /** Still being driven: [endAt], the distance and the consumptions are the ones so far. */
+    val inProgress: Boolean = false,
 ) {
     val endAt: Instant? get() = if (startAt != null && duration != null) startAt.plus(duration) else null
 

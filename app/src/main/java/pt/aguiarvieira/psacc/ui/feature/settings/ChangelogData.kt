@@ -21,6 +21,14 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.12",
+        date = "23/09/2026",
+        changes = listOf(
+            "A trip still being driven shows as in progress instead of as a finished trip, and its " +
+                "notification waits for the car to stop so it has the final distance and consumption.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.11",
         date = "23/09/2026",
         changes = listOf(

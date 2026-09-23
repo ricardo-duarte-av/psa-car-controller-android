@@ -25,6 +25,8 @@ data class PsaTripDto(
     val kinetic: PsaTripKineticDto? = null,
     @SerialName("startPosition") val startPosition: PositionDto? = null,
     @SerialName("stopPosition") val stopPosition: PositionDto? = null,
+    /** False while the trip is being driven; [stoppedAt] is then PSA's latest update. */
+    val done: Boolean? = null,
 )
 
 @Serializable

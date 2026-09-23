@@ -189,6 +189,30 @@ class MappersTest {
     }
 
     @Test
+    fun `the trip being driven is in progress, and a server without the flag reports none`() {
+        val merged = """
+            [{"id":60,"start_at":"Wed, 23 Sep 2026 19:04:24 GMT","duration":17.3,"distance":5.5,"in_progress":true},
+             {"id":59,"start_at":"Wed, 23 Sep 2026 14:26:46 GMT","duration":3.3,"distance":0.2,"in_progress":false},
+             {"id":5,"start_at":"Wed, 23 Sep 2026 19:08:42 GMT","duration":17.0,"distance":7.1}]
+        """.trimIndent()
+        assertEquals(
+            listOf(true, false, false),
+            Fixtures.json.decodeFromString(ListSerializer(TripDto.serializer()), merged)
+                .mapIndexed { i, dto -> dto.toDomain(i).inProgress },
+        )
+        val psa = """
+            [{"id":"a","startedAt":"2026-09-23T19:04:24Z","duration":1038,"distance":5.5,"done":false},
+             {"id":"b","startedAt":"2026-09-23T14:26:46Z","duration":197,"distance":0.2,"done":true},
+             {"id":"c","startedAt":"2026-09-23T09:34:49Z","duration":724,"distance":6.2}]
+        """.trimIndent()
+        assertEquals(
+            listOf(true, false, false),
+            Fixtures.json.decodeFromString(ListSerializer(PsaTripDto.serializer()), psa)
+                .mapIndexed { i, dto -> dto.toDomain(i).inProgress },
+        )
+    }
+
+    @Test
     fun `a psacc trip has no levels and is not merged`() {
         val body = """[{"id":1,"start_at":"Wed, 16 Sep 2026 08:21:15 GMT","duration":7.8,"distance":3.0}]"""
         val trip = Fixtures.json.decodeFromString(ListSerializer(TripDto.serializer()), body)
