@@ -178,6 +178,17 @@ class VehicleRepositoryImpl @Inject constructor(
     }
 
     override suspend fun trips(vin: String?): Result<List<Trip>> = call {
+        // The forked daemon merges PSA's trips with PSACC's (battery levels, route, temperature); older
+        // servers don't serve them (404). An empty answer may be a failed merge, so try the rest.
+        val merged = vin?.let {
+            runCatching {
+                client.get(config(), ListSerializer(TripDto.serializer()), listOf("vehicles", it, "merged_trips"))
+            }.getOrNull()
+        }
+        if (!merged.isNullOrEmpty()) {
+            _psaTripsAvailable.value = true
+            return@call merged.mapIndexed { index, dto -> dto.toDomain(index) }.sortedByDescending { it.startAt }
+        }
         // PSA's own trips are richer and exist per vehicle; older servers don't serve them (404).
         val psaTrips = vin?.let {
             runCatching {

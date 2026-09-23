@@ -73,8 +73,9 @@ interface VehicleRepository {
     suspend fun lastVehicleUpdate(vin: String): PsaccEvent.VehicleUpdate?
 
     /**
-     * PSA's own trips when the server can serve them (per vehicle, with the battery and fuel levels
-     * at both ends), falling back to the ones PSACC rebuilds — which exist for its first car only.
+     * The forked daemon's merged trips when it serves them (PSA's trips enriched with PSACC's battery
+     * levels, route and temperature), else PSA's own trips (per vehicle, with the battery and fuel
+     * levels at both ends), falling back to the ones PSACC rebuilds — which exist for its first car only.
      */
     suspend fun trips(vin: String?): Result<List<Trip>>
 

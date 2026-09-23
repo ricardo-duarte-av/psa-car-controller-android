@@ -163,6 +163,42 @@ class MappersTest {
     }
 
     @Test
+    fun `a merged trip decodes with its levels and fuel`() {
+        val body = """
+            [{"id":58,"start_at":"Wed, 23 Sep 2026 09:34:49 GMT","end_at":"Wed, 23 Sep 2026 09:46:53 GMT",
+              "duration":12.07,"distance":6.2,"mileage":142839.5,"speed_average":30.8,
+              "consumption":0.9,"consumption_km":14.5,"consumption_fuel":0.46,"consumption_fuel_km":7.43,
+              "consumption_by_temp":null,"altitude_diff":null,"positions":{"lat":[],"long":[]},
+              "source":"psa","start_level":60,"end_level":52,"start_level_source":"car",
+              "end_level_source":"car","start_level_fuel":36.0,"end_level_fuel":36.0}]
+        """.trimIndent()
+        val trip = Fixtures.json.decodeFromString(ListSerializer(TripDto.serializer()), body)
+            .mapIndexed { i, dto -> dto.toDomain(i) }
+            .single()
+
+        assertTrue(trip.merged)
+        assertEquals(Duration.ofSeconds(724), trip.duration)
+        assertEquals(60.0, trip.startBatteryPercent!!, 0.0)
+        assertEquals(52.0, trip.endBatteryPercent!!, 0.0)
+        assertEquals(14.5, trip.kwhPer100!!, 0.0)
+        assertEquals(0.46, trip.fuelLitres!!, 0.0)
+        assertEquals(36.0, trip.startFuelPercent!!, 0.0)
+        // PSA copies its start level into the end one
+        assertNull(trip.endFuelPercent)
+        assertFalse(trip.hasRoute)
+    }
+
+    @Test
+    fun `a psacc trip has no levels and is not merged`() {
+        val body = """[{"id":1,"start_at":"Wed, 16 Sep 2026 08:21:15 GMT","duration":7.8,"distance":3.0}]"""
+        val trip = Fixtures.json.decodeFromString(ListSerializer(TripDto.serializer()), body)
+            .map { it.toDomain(0) }.single()
+        assertFalse(trip.merged)
+        assertNull(trip.startBatteryPercent)
+        assertNull(trip.fuelLitres)
+    }
+
+    @Test
     fun `maintenance decodes`() {
         val m = Fixtures.json.decodeFromString(
             MaintenanceDto.serializer(),

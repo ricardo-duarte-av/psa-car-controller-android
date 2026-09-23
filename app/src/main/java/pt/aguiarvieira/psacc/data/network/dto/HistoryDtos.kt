@@ -3,7 +3,12 @@ package pt.aguiarvieira.psacc.data.network.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** `GET /vehicles/trips` element (`Trip.get_info()` upstream). Trips are for the first vehicle only. */
+/**
+ * `GET /vehicles/trips` element (`Trip.get_info()` upstream). Trips are for the first vehicle only.
+ *
+ * Also the element of the forked daemon's `GET /vehicles/<vin>/merged_trips`: PSA's own trips
+ * enriched with what PSACC recorded during them, which adds the fields from [source] on.
+ */
 @Serializable
 data class TripDto(
     val id: Int? = null,
@@ -24,6 +29,15 @@ data class TripDto(
     @SerialName("consumption_by_temp") val temperature: Double? = null,
     @SerialName("altitude_diff") val altitudeDiff: Double? = null,
     val positions: TripPositionsDto? = null,
+    /** `psa` (PSA's trip, enriched) or `psacc` (rebuilt from PSACC's polls only). */
+    val source: String? = null,
+    /** Battery % at both ends; the daemon already dropped the levels PSA makes up on a flat battery. */
+    @SerialName("start_level") val startLevel: Double? = null,
+    @SerialName("end_level") val endLevel: Double? = null,
+    @SerialName("start_level_fuel") val startLevelFuel: Double? = null,
+    @SerialName("end_level_fuel") val endLevelFuel: Double? = null,
+    /** Litres burnt over the trip. */
+    @SerialName("consumption_fuel") val consumptionFuel: Double? = null,
 )
 
 @Serializable

@@ -163,6 +163,14 @@ internal fun TripDto.toDomain(index: Int): Trip {
         temperatureC = temperature,
         altitudeDiff = altitudeDiff,
         route = route,
+        startBatteryPercent = startLevel,
+        endBatteryPercent = endLevel,
+        startFuelPercent = startLevelFuel,
+        // PSA copies its start level into the end one, so an identical end level isn't a reading.
+        endFuelPercent = endLevelFuel?.takeIf { source != "psa" || it != startLevelFuel },
+        // PSACC's own trips report 0 when they couldn't tell.
+        fuelLitres = consumptionFuel?.takeIf { source != null },
+        merged = source != null,
     )
 }
 

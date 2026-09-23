@@ -24,6 +24,8 @@ data class Trip(
     val maxSpeed: Double? = null,
     /** Litres actually burnt over the trip, when PSA reports them. */
     val fuelLitres: Double? = null,
+    /** From the forked daemon's merged trips, which exist per vehicle. */
+    val merged: Boolean = false,
 ) {
     val endAt: Instant? get() = if (startAt != null && duration != null) startAt.plus(duration) else null
 
