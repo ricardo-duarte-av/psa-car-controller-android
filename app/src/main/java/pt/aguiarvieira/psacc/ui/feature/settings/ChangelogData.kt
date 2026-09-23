@@ -18,6 +18,11 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
     ChangelogVersion(
         version = null,
         date = null,
+        changes = emptyList(),
+    ),
+    ChangelogVersion(
+        version = "0.1.10",
+        date = "23/09/2026",
         changes = listOf(
             "Trips no longer show a full battery when PSA reports one with no electric range " +
                 "(it does this when the battery is empty); the battery level is left out instead.",
