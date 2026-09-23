@@ -21,6 +21,13 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.22",
+        date = "23/09/2026",
+        changes = listOf(
+            "In step with server 0.1.22, whose web page no longer opens with empty trips after a restart.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.21",
         date = "23/09/2026",
         changes = listOf(
