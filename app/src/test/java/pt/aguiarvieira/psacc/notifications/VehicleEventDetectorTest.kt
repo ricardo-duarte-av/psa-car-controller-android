@@ -138,18 +138,54 @@ class VehicleEventDetectorTest {
     }
 
     @Test
-    fun `a trip being driven is reported once it's done, with its final figures`() {
+    fun `a trip being driven is reported when it starts, then again with its final figures`() {
         val old = trip("2026-09-23T09:34:00Z")
         val start = "2026-09-23T19:04:00Z"
         var watch = VehicleEventDetector.detect(null, snapshot(trips = listOf(old))).watch
-        listOf(3.0, 5.5).forEach { soFar ->
+        val seen = listOf(3.0, 5.5).map { soFar ->
             val d = VehicleEventDetector.detect(watch, snapshot(trips = listOf(old, trip(start, soFar, inProgress = true))))
-            assertTrue(d.events.isEmpty())
             watch = d.watch
+            d.events
         }
+        assertEquals(listOf(3.0), seen[0].filterIsInstance<VehicleEvent.TripStarted>().map { it.trip.distance })
+        assertEquals(1, seen[0].size)
+        assertTrue(seen[1].isEmpty())
         val done = VehicleEventDetector.detect(watch, snapshot(trips = listOf(old, trip(start, 7.1))))
         assertEquals(listOf(7.1), done.events.filterIsInstance<VehicleEvent.TripRecorded>().map { it.trip.distance })
+        assertEquals(1, done.events.size)
         assertTrue(VehicleEventDetector.detect(done.watch, snapshot(trips = listOf(old, trip(start, 7.1)))).events.isEmpty())
+    }
+
+    @Test
+    fun `a trip already being driven at the first check is only reported when done`() {
+        val start = "2026-09-23T19:04:00Z"
+        val first = VehicleEventDetector.detect(null, snapshot(trips = listOf(trip(start, 3.0, inProgress = true))))
+        assertTrue(first.events.isEmpty())
+        val again = VehicleEventDetector.detect(first.watch, snapshot(trips = listOf(trip(start, 5.0, inProgress = true))))
+        assertTrue(again.events.isEmpty())
+        val done = VehicleEventDetector.detect(again.watch, snapshot(trips = listOf(trip(start, 7.1))))
+        assertEquals(listOf(7.1), done.events.filterIsInstance<VehicleEvent.TripRecorded>().map { it.trip.distance })
+    }
+
+    @Test
+    fun `a trip that ends and a new one that starts between checks are both reported`() {
+        val first = "2026-09-23T19:04:00Z"
+        val second = "2026-09-23T20:00:00Z"
+        val events = run(
+            snapshot(trips = emptyList()),
+            snapshot(trips = listOf(trip(first, 3.0, inProgress = true))),
+            snapshot(trips = listOf(trip(first, 7.1), trip(second, 1.0, inProgress = true))),
+        )
+        assertEquals(
+            listOf("TripRecorded 2026-09-23T19:04:00Z", "TripStarted 2026-09-23T20:00:00Z"),
+            events.map {
+                when (it) {
+                    is VehicleEvent.TripRecorded -> "TripRecorded ${it.trip.startAt}"
+                    is VehicleEvent.TripStarted -> "TripStarted ${it.trip.startAt}"
+                    else -> it.toString()
+                }
+            },
+        )
     }
 
     @Test

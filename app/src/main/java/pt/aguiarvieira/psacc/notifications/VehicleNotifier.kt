@@ -74,6 +74,20 @@ class VehicleNotifier @Inject constructor(
     private data class Content(val title: String, val text: String, val whenMillis: Long? = null)
 
     private fun describe(name: String, event: VehicleEvent, settings: ServerSettings): Content = when (event) {
+        is VehicleEvent.TripStarted -> {
+            val t = event.trip
+            Content(
+                title = "$name: trip in progress",
+                text = listOfNotNull(
+                    "Started at ${Formatters.time(t.startAt)}",
+                    t.distance?.takeIf { it > 0 }?.let {
+                        "${Formatters.distance(it, settings.lengthUnit, decimals = 1)} so far"
+                    },
+                    t.startBatteryPercent?.let { "battery ${Formatters.percent(it)} at the start" },
+                ).joinToString(" · "),
+                whenMillis = t.startAt?.toEpochMilli(),
+            )
+        }
         is VehicleEvent.TripRecorded -> {
             val t = event.trip
             Content(
@@ -154,9 +168,11 @@ class VehicleNotifier @Inject constructor(
 
     /**
      * State-like events (ignition, plug, charge status) replace the vehicle's previous notification of
-     * the same kind; records (trips, sessions) each get their own.
+     * the same kind; records (trips, sessions) each get their own. A trip's final notification replaces
+     * (and re-alerts over) the one posted when it started.
      */
     private fun notificationId(vin: String, event: VehicleEvent): Int = when (event) {
+        is VehicleEvent.TripStarted -> "trip:$vin:${event.trip.startAt}"
         is VehicleEvent.TripRecorded -> "trip:$vin:${event.trip.startAt}"
         is VehicleEvent.SessionFinished -> "session:$vin:${event.session.startAt}"
         is VehicleEvent.IgnitionChanged -> "ignition:$vin"

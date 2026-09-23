@@ -21,11 +21,13 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
-        version = "0.1.12",
+        version = "0.1.19",
         date = "23/09/2026",
         changes = listOf(
-            "A trip still being driven shows as in progress instead of as a finished trip, and its " +
-                "notification waits for the car to stop so it has the final distance and consumption.",
+            "A trip still being driven shows as in progress instead of as a finished trip.",
+            "Trip notifications: one when a trip starts, replaced by one with the final distance and " +
+                "consumption once the car stops.",
+            "The app's version now follows the server's (PSACC fork 0.1.19).",
         ),
     ),
     ChangelogVersion(

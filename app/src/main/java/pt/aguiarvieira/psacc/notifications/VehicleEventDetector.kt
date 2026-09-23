@@ -22,6 +22,8 @@ data class VehicleWatch(
     val plugged: Boolean? = null,
     val tripsBaselined: Boolean = false,
     val lastTripStartMs: Long? = null,
+    /** Start of the trip that was being driven last time, so its start is only reported once. */
+    val openTripStartMs: Long? = null,
     val sessionsBaselined: Boolean = false,
     val lastSessionStartMs: Long? = null,
     /** Start of a session that was still running last time, so its completion can be reported. */
@@ -38,6 +40,11 @@ data class VehicleSnapshot(
 
 sealed interface VehicleEvent {
     val category: NotificationCategory
+
+    /** A trip being driven, first seen: its figures are the ones so far. */
+    data class TripStarted(val trip: Trip) : VehicleEvent {
+        override val category get() = NotificationCategory.TRIPS
+    }
 
     data class TripRecorded(val trip: Trip) : VehicleEvent {
         override val category get() = NotificationCategory.TRIPS
@@ -98,21 +105,29 @@ object VehicleEventDetector {
         }
 
         snapshot.trips?.let { trips ->
-            // A trip still being driven is reported (and the watch moved past it) once it's done.
-            val starts = trips
-                .filterNot { it.inProgress }
+            // A trip being driven is reported when first seen, and recorded (moving the watch past
+            // it) once it's done, with its final figures.
+            val (driving, finished) = trips
                 .mapNotNull { t -> t.startAt?.toEpochMilli()?.let { it to t } }
+                .partition { it.second.inProgress }
+            val drivingNow = driving.maxByOrNull { it.first }
             if (prev.tripsBaselined) {
-                val newTrips = starts
+                val newTrips = finished
                     .filter { (start, _) -> prev.lastTripStartMs == null || start > prev.lastTripStartMs }
                     .sortedBy { it.first }
                     .map { it.second }
                     .takeLast(MAX_TRIP_EVENTS)
                 newTrips.forEach { events += VehicleEvent.TripRecorded(it) }
+                drivingNow
+                    ?.takeIf { (start, _) ->
+                        start != prev.openTripStartMs && (prev.lastTripStartMs == null || start > prev.lastTripStartMs)
+                    }
+                    ?.let { events += VehicleEvent.TripStarted(it.second) }
             }
             watch = watch.copy(
                 tripsBaselined = true,
-                lastTripStartMs = listOfNotNull(prev.lastTripStartMs, starts.maxOfOrNull { it.first }).maxOrNull(),
+                lastTripStartMs = listOfNotNull(prev.lastTripStartMs, finished.maxOfOrNull { it.first }).maxOrNull(),
+                openTripStartMs = drivingNow?.first,
             )
         }
 
