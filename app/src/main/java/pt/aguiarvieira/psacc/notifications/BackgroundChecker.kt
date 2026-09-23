@@ -7,7 +7,11 @@ import kotlinx.coroutines.sync.withLock
 import pt.aguiarvieira.psacc.data.auth.ConnectionRepository
 import pt.aguiarvieira.psacc.data.repository.VehicleRepository
 import pt.aguiarvieira.psacc.data.settings.AppPreferences
+import pt.aguiarvieira.psacc.domain.model.PsaccEvent
+import pt.aguiarvieira.psacc.domain.model.VehicleStatus
+import pt.aguiarvieira.psacc.domain.model.withLiveBattery
 import pt.aguiarvieira.psacc.ui.components.userMessage
+import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,6 +45,8 @@ class BackgroundChecker @Inject constructor(
         }
         val settings = preferences.notificationSettings.first()
         val serverSettings = repository.refreshServerSettings().getOrElse { repository.serverSettings.value }
+        // Needed for the live battery reading and per-vehicle trips; a worker process hasn't probed yet.
+        repository.refreshCapabilities()
         val previous = watchStore.load()
         val updated = previous.toMutableMap()
         val errors = mutableListOf<String>()
@@ -48,6 +54,7 @@ class BackgroundChecker @Inject constructor(
         vehicles.forEachIndexed { index, vehicle ->
             val status = repository.status(vehicle.vin, fromCache = true)
                 .onFailure { errors += it.userMessage() }.getOrNull()
+                ?.let { it.withLiveBattery(freshLiveReading(vehicle.vin, it)) }
             val sessions = repository.chargingSessions(vehicle.vin)
                 .onFailure { errors += it.userMessage() }.getOrNull()
             // PSA serves trips per vehicle; PSACC's own fallback only covers its first one.
@@ -72,7 +79,21 @@ class BackgroundChecker @Inject constructor(
         preferences.recordCheck(System.currentTimeMillis(), errors.distinct().firstOrNull())
     }
 
+    /**
+     * The car's own battery reading, as the Car tab shows it: the status API's level has been seen
+     * stuck at 100% on an empty battery. Skipped when clearly older than the status, e.g. the last
+     * event before the daemon lost the car's MQTT feed.
+     */
+    private suspend fun freshLiveReading(vin: String, status: VehicleStatus): PsaccEvent.VehicleUpdate? {
+        val live = repository.lastVehicleUpdate(vin) ?: return null
+        val statusAt = status.electric?.updatedAt ?: status.updatedAt
+        val liveAt = live.at
+        val stale = statusAt != null && liveAt != null && liveAt.isBefore(statusAt.minus(LIVE_MAX_LAG))
+        return live.takeUnless { stale }
+    }
+
     private companion object {
         const val TAG = "BackgroundChecker"
+        val LIVE_MAX_LAG: Duration = Duration.ofHours(1)
     }
 }

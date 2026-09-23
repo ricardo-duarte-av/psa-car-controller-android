@@ -39,6 +39,7 @@ import pt.aguiarvieira.psacc.domain.model.ElectricEnergy
 import pt.aguiarvieira.psacc.domain.model.FuelEnergy
 import pt.aguiarvieira.psacc.domain.model.PsaccEvent
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
+import pt.aguiarvieira.psacc.domain.model.withLiveBattery
 import pt.aguiarvieira.psacc.util.Formatters
 
 /** The big battery ring (or fuel gauge for ICE cars), range, charge state and data freshness. */
@@ -50,15 +51,9 @@ fun HeroCard(
     modifier: Modifier = Modifier,
     live: PsaccEvent.VehicleUpdate? = null,
 ) {
-    // The live MQTT event carries the car's own reported state of charge (soc_batt), which is more
-    // reliable than the status API's `level` — PSA has been seen reporting level 100 with 0 km of
-    // range on an empty battery, while the event correctly said 0. So the battery figures come from
-    // the event whenever one is present (Car tab); plug and charge state stay with the status.
+    // Battery figures come from the live event whenever one is present (Car tab); see withLiveBattery.
     val fresher = live != null && live.batteryLevel != null
-    val electricOverride = status.electric?.takeIf { fresher }?.copy(
-        levelPercent = live?.batteryLevel ?: status.electric.levelPercent,
-        rangeKm = live?.autonomy ?: status.electric.rangeKm,
-    )
+    val electric = status.withLiveBattery(live).electric
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -74,7 +69,6 @@ fun HeroCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            val electric = electricOverride ?: status.electric
             if (electric != null) {
                 BatteryRing(electric, lengthUnit)
                 ChargeChip(electric)

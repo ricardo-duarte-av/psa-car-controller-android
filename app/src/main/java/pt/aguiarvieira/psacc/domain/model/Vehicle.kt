@@ -35,6 +35,17 @@ data class VehicleStatus(
     val updatedAt: Instant?,
 )
 
+/**
+ * [this] with the battery level and range from the car's live MQTT reading (soc_batt), which is
+ * more reliable than the status API's `level`: PSA has been seen reporting 100% with 0 km of range
+ * on an empty battery while the event correctly said 0. Plug and charge state stay with the status.
+ */
+fun VehicleStatus.withLiveBattery(live: PsaccEvent.VehicleUpdate?): VehicleStatus {
+    val level = live?.batteryLevel ?: return this
+    val electric = electric ?: return this
+    return copy(electric = electric.copy(levelPercent = level, rangeKm = live.autonomy ?: electric.rangeKm))
+}
+
 data class ElectricEnergy(
     val levelPercent: Double?,
     val rangeKm: Double?,

@@ -66,6 +66,13 @@ interface VehicleRepository {
     fun events(): Flow<PsaccEvent>
 
     /**
+     * The car's last live reading for [vin], which the daemon replays to every new `/events`
+     * subscriber; null on a stock server, when none has arrived since the daemon started, or when
+     * the stream can't be read. Needs [refreshCapabilities] to have run.
+     */
+    suspend fun lastVehicleUpdate(vin: String): PsaccEvent.VehicleUpdate?
+
+    /**
      * PSA's own trips when the server can serve them (per vehicle, with the battery and fuel levels
      * at both ends), falling back to the ones PSACC rebuilds — which exist for its first car only.
      */

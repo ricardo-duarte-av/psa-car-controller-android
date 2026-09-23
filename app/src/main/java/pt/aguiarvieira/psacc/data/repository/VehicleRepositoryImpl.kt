@@ -1,11 +1,14 @@
 package pt.aguiarvieira.psacc.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -162,6 +165,18 @@ class VehicleRepositoryImpl @Inject constructor(
         .events(connection.config.value ?: throw PsaccException.NotConfigured())
         .mapNotNull { frame -> frame.toEvent(json) }
 
+    override suspend fun lastVehicleUpdate(vin: String): PsaccEvent.VehicleUpdate? {
+        if (!_capabilities.value.events) return null
+        return try {
+            // The replay comes right after connecting; the timeout covers a daemon with nothing to replay.
+            withTimeoutOrNull(LIVE_REPLAY_TIMEOUT_MS) {
+                events().filterIsInstance<PsaccEvent.VehicleUpdate>().first { it.vin == null || it.vin == vin }
+            }
+        } catch (e: PsaccException) {
+            null
+        }
+    }
+
     override suspend fun trips(vin: String?): Result<List<Trip>> = call {
         // PSA's own trips are richer and exist per vehicle; older servers don't serve them (404).
         val psaTrips = vin?.let {
@@ -223,6 +238,8 @@ class VehicleRepositoryImpl @Inject constructor(
 
         /** The daemon caps `?wait=` at 30 s. */
         const val MAX_COMMAND_WAIT_SECONDS = 30
+
+        const val LIVE_REPLAY_TIMEOUT_MS = 5_000L
     }
 }
 
