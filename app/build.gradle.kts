@@ -25,8 +25,8 @@ android {
         applicationId = "pt.aguiarvieira.psacc"
         minSdk = 29
         targetSdk = 37
-        versionCode = 18
-        versionName = "0.1.23"
+        versionCode = 19
+        versionName = "0.1.24"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -134,6 +134,8 @@ dependencies {
 
     // Google Maps
     implementation(libs.play.services.maps)
+    // Play's own "update available" screens (in-app updates)
+    implementation(libs.play.app.update)
     implementation(libs.maps.compose)
 
     // Test

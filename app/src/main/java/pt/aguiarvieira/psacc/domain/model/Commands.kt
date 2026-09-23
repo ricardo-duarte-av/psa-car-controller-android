@@ -1,6 +1,8 @@
 package pt.aguiarvieira.psacc.domain.model
 
 import java.time.Instant
+import pt.aguiarvieira.psacc.util.VersionMatch
+import pt.aguiarvieira.psacc.util.Versions
 
 /**
  * What became of a remote command.
@@ -54,7 +56,22 @@ data class CommandOutcome(
 data class ServerCapabilities(
     val commandResults: Boolean = false,
     val events: Boolean = false,
+    /** The daemon's release, from `GET /version` (the fork, 0.1.24 on). */
+    val serverVersion: String? = null,
+    /** False until the server was asked, so nothing is decided on the defaults. */
+    val probed: Boolean = false,
 ) {
+    /**
+     * How [appVersion] compares with the server's. The fork before 0.1.24 has no `/version` but has
+     * `/commands`: it is older than any app that asks. Stock upstream PSACC can't be compared.
+     */
+    fun versionMatch(appVersion: String): VersionMatch = when {
+        !probed -> VersionMatch.UNKNOWN
+        serverVersion != null -> Versions.compare(appVersion, serverVersion)
+        commandResults -> VersionMatch.SERVER_BEHIND
+        else -> VersionMatch.UNKNOWN
+    }
+
     companion object {
         /** Plain upstream PSA Car Controller: commands are fire-and-forget, no event stream. */
         val Basic = ServerCapabilities()

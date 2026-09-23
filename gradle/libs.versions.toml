@@ -30,6 +30,7 @@ hiltLifecycleViewModelCompose = "1.4.0"
 
 # --- Maps (same versions andromuks ships with) ---
 playServicesMaps = "20.0.0"
+playAppUpdate = "2.1.0"
 mapsCompose = "8.3.0"
 
 [libraries]
@@ -67,6 +68,7 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+play-app-update = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "playAppUpdate" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }

@@ -33,6 +33,7 @@ import pt.aguiarvieira.psacc.data.network.dto.SohDto
 import pt.aguiarvieira.psacc.data.network.dto.TripDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleStatusDto
+import pt.aguiarvieira.psacc.data.network.dto.VersionDto
 import pt.aguiarvieira.psacc.data.settings.AppPreferences
 import pt.aguiarvieira.psacc.domain.model.CarCommand
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
@@ -157,7 +158,13 @@ class VehicleRepositoryImpl @Inject constructor(
     override suspend fun refreshCapabilities(): ServerCapabilities {
         // /commands exists only on the fork that reports command results and streams events.
         val supported = runCatching { client.getJson(config(), listOf("commands")) }.isSuccess
-        return ServerCapabilities(commandResults = supported, events = supported)
+        // /version: the fork from 0.1.24, to compare with the app's own release.
+        val version = if (supported) {
+            runCatching { client.get(config(), VersionDto.serializer(), listOf("version")).version }.getOrNull()
+        } else {
+            null
+        }
+        return ServerCapabilities(commandResults = supported, events = supported, serverVersion = version, probed = true)
             .also { _capabilities.value = it }
     }
 

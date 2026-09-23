@@ -21,6 +21,15 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.24",
+        date = "23/09/2026",
+        changes = listOf(
+            "Google Play offers the app's updates from inside the app: in the background, or right away " +
+                "when your server is already on a newer version.",
+            "The app says when your server runs a different version than it, and which to update.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.23",
         date = "23/09/2026",
         changes = listOf(

@@ -107,7 +107,23 @@ class AppPreferences @Inject constructor(
         }
     }
 
+    /** The Play update last offered without asking (a flexible one is offered once per version). */
+    val updatePromptedVersionCode: Flow<Int?> = context.dataStore.data.map { it[KEY_UPDATE_PROMPTED] }
+
+    suspend fun setUpdatePromptedVersionCode(versionCode: Int) {
+        context.dataStore.edit { it[KEY_UPDATE_PROMPTED] = versionCode }
+    }
+
+    /** "server>app" versions whose "update your server" notice was dismissed. */
+    val dismissedServerNotice: Flow<String?> = context.dataStore.data.map { it[KEY_SERVER_NOTICE_DISMISSED] }
+
+    suspend fun setDismissedServerNotice(key: String) {
+        context.dataStore.edit { it[KEY_SERVER_NOTICE_DISMISSED] = key }
+    }
+
     private companion object {
+        val KEY_UPDATE_PROMPTED = intPreferencesKey("update_prompted_version_code")
+        val KEY_SERVER_NOTICE_DISMISSED = stringPreferencesKey("server_notice_dismissed")
         val KEY_SELECTED_VIN = stringPreferencesKey("selected_vin")
         val KEY_FUEL_PRICE = doublePreferencesKey("fuel_price_per_litre")
         val KEY_REFUSED_COMMANDS = stringSetPreferencesKey("refused_commands")
