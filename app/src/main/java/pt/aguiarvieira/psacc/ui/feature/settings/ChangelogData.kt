@@ -21,6 +21,14 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.21",
+        date = "23/09/2026",
+        changes = listOf(
+            "With server 0.1.21: a drive is shown as one trip only when the stop was under 3 minutes " +
+                "(was 5), so two trips a few minutes apart stay separate.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.20",
         date = "23/09/2026",
         changes = listOf(
