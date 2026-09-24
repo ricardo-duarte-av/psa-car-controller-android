@@ -21,6 +21,14 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.25",
+        date = "24/09/2026",
+        changes = listOf(
+            "In step with server 0.1.25, which no longer loses a request to PSA every hour when its " +
+                "login expires.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.24",
         date = "23/09/2026",
         changes = listOf(
