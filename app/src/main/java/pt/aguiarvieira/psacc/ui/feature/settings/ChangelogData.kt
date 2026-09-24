@@ -21,6 +21,14 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.27",
+        date = "24/09/2026",
+        changes = listOf(
+            "In step with server 0.1.27, whose request retried after renewing PSA's login is no " +
+                "longer refused.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.26",
         date = "24/09/2026",
         changes = listOf(
