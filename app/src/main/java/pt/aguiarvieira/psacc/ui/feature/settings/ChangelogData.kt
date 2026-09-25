@@ -21,6 +21,14 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.29",
+        date = "25/09/2026",
+        changes = listOf(
+            "In step with server 0.1.29, which reads the trips the car logs itself the way the " +
+                "official app does (a diagnostic for now).",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.28",
         date = "25/09/2026",
         changes = listOf(
