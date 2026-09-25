@@ -21,6 +21,16 @@ val CHANGELOG: List<ChangelogVersion> = listOf(
         changes = emptyList(),
     ),
     ChangelogVersion(
+        version = "0.1.28",
+        date = "25/09/2026",
+        changes = listOf(
+            "Charging sessions can be edited: tap a finished one to enter what the charger billed " +
+                "(energy and cost) and whether it was at home, at work (free) or a public charger. " +
+                "Needs server 0.1.28.",
+            "Charging totals use the billed energy when it was entered.",
+        ),
+    ),
+    ChangelogVersion(
         version = "0.1.27",
         date = "24/09/2026",
         changes = listOf(

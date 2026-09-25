@@ -2,6 +2,8 @@ package pt.aguiarvieira.psacc.data
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.Credentials
@@ -19,6 +21,7 @@ import pt.aguiarvieira.psacc.data.auth.ConnectionRepositoryImpl
 import pt.aguiarvieira.psacc.data.auth.ServerConfig
 import pt.aguiarvieira.psacc.data.network.PsaccClient
 import pt.aguiarvieira.psacc.data.network.PsaccException
+import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleDto
 
 class PsaccClientTest {
@@ -98,6 +101,36 @@ class PsaccClientTest {
         repo.disconnect()
         assertNull(repo.config.value)
         assertNull(store.saved)
+    }
+
+    @Test
+    fun `patch sends json and reads the fork's error message`() = runTest {
+        server.enqueue(MockResponse.Builder().body("""{"VIN": "VIN1", "price": 10.26}""").build())
+        server.enqueue(
+            MockResponse.Builder().code(409).body("""{"error": "the charge is still in progress"}""").build(),
+        )
+        server.enqueue(MockResponse.Builder().code(404).body("<html>not found</html>").build())
+        val body = buildJsonObject { put("price", 10.26) }
+
+        val dto = client.patch(config(), ChargingSessionDto.serializer(), listOf("vehicles", "VIN1", "chargings"), body)
+
+        assertEquals(10.26, dto.price!!, 0.0)
+        val request = server.takeRequest()
+        assertEquals("PATCH", request.method)
+        assertEquals("/vehicles/VIN1/chargings", request.url.encodedPath)
+        assertEquals("""{"price":10.26}""", request.body?.utf8())
+        try {
+            client.patch(config(), ChargingSessionDto.serializer(), listOf("x"), body)
+            fail("expected Server")
+        } catch (e: PsaccException.Server) {
+            assertEquals("the charge is still in progress", e.message)
+        }
+        try {
+            client.patch(config(), ChargingSessionDto.serializer(), listOf("x"), body)
+            fail("expected Http")
+        } catch (e: PsaccException.Http) {
+            assertEquals(404, e.code)
+        }
     }
 }
 

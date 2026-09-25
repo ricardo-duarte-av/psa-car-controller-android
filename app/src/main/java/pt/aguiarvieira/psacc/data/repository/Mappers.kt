@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.contentOrNull
 import pt.aguiarvieira.psacc.data.network.PsaccException
 import pt.aguiarvieira.psacc.data.network.SseFrame
@@ -23,8 +25,10 @@ import pt.aguiarvieira.psacc.data.network.dto.ServerSettingsDto
 import pt.aguiarvieira.psacc.data.network.dto.TripDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleDto
 import pt.aguiarvieira.psacc.data.network.dto.VehicleStatusDto
+import pt.aguiarvieira.psacc.domain.model.ChargePlace
 import pt.aguiarvieira.psacc.domain.model.ChargeStatus
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
+import pt.aguiarvieira.psacc.domain.model.ChargingSessionEdit
 import pt.aguiarvieira.psacc.domain.model.ChargingState
 import pt.aguiarvieira.psacc.domain.model.DoorLockState
 import pt.aguiarvieira.psacc.domain.model.ElectricEnergy
@@ -39,6 +43,7 @@ import pt.aguiarvieira.psacc.domain.model.VehiclePosition
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
 import pt.aguiarvieira.psacc.util.PsaccTime
 import java.time.Duration
+import java.time.Instant
 
 private const val MS_TO_KMH = 3.6
 private const val CL_PER_LITRE = 100.0
@@ -258,7 +263,18 @@ internal fun ChargingSessionDto.toDomain() = ChargingSession(
     co2 = co2,
     mode = chargingMode,
     odometer = mileage,
+    place = ChargePlace.fromApi(place),
+    meteredKwh = meteredKw,
+    priceManual = priceManual,
 )
+
+/** The `PATCH /vehicles/<vin>/chargings` body: every key is sent, a null clearing what was set by hand. */
+internal fun ChargingSessionEdit.toJson(startAt: Instant): JsonObject = buildJsonObject {
+    put("start_at", startAt.toString())
+    put("place", place.apiValue)
+    put("metered_kw", meteredKwh)
+    put("price", price)
+}
 
 internal fun ServerSettingsDto.toDomain() = ServerSettings(
     currency = general?.currency?.takeIf { it.isNotBlank() } ?: ServerSettings.Default.currency,

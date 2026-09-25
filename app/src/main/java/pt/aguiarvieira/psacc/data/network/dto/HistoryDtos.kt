@@ -62,6 +62,10 @@ data class ChargingSessionDto(
     @SerialName("charging_mode") val chargingMode: String? = null,
     val mileage: Double? = null,
     @SerialName("duration_min") val durationMin: Double? = null,
+    // set by hand, on the fork only (0.1.28 on)
+    val place: String? = null,
+    @SerialName("metered_kw") val meteredKw: Double? = null,
+    @SerialName("price_manual") val priceManual: Boolean = false,
 )
 
 /** `GET /settings` — PSACC's config.ini. Only the parts the app displays are modelled. */

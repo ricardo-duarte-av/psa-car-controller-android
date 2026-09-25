@@ -143,7 +143,7 @@ class VehicleNotifier @Inject constructor(
                     } else {
                         null
                     },
-                    s.kwh?.let { "${Formatters.number(it, 1)} kWh" },
+                    s.energy?.let { "${Formatters.number(it, 1)} kWh" },
                     s.price?.let { Formatters.money(it, settings.currency) },
                     s.duration?.let { Formatters.duration(it) },
                 ).joinToString(" · "),

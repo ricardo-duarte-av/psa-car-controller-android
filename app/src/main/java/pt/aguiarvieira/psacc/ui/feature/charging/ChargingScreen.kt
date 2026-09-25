@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import pt.aguiarvieira.psacc.domain.model.ChargePlace
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.ui.components.ContentState
@@ -80,12 +81,16 @@ fun ChargingScreen(viewModel: ChargingViewModel = hiltViewModel()) {
                     ) {
                         state.summary?.let { item(key = "summary") { SummaryCard(it, state.settings) } }
                         itemsIndexed(sessions.value, key = { index, s -> "$index-${s.startAt}" }) { _, session ->
-                            SessionCard(session, state.settings)
+                            SessionCard(session, state.settings, onEdit = { viewModel.startEdit(session) })
                         }
                     }
                 }
             }
         }
+    }
+
+    state.edit?.let { edit ->
+        SessionEditSheet(edit, state.settings, onDismiss = viewModel::dismissEdit, onSave = viewModel::saveEdit)
     }
 }
 
@@ -119,11 +124,18 @@ private fun SummaryCard(summary: ChargingSummary, settings: ServerSettings) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SessionCard(session: ChargingSession, settings: ServerSettings) {
+private fun SessionCard(session: ChargingSession, settings: ServerSettings, onEdit: () -> Unit) {
     Card(
+        onClick = onEdit,
+        enabled = session.editable,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        // enabled only decides whether it opens the editor: a session in progress looks the same
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+        ),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -142,7 +154,11 @@ private fun SessionCard(session: ChargingSession, settings: ServerSettings) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (session.place != ChargePlace.Home) {
+                    SuggestionChip(onClick = onEdit, label = { Text(session.place.label) })
+                }
                 session.mode?.takeIf { it.isNotBlank() && it != "No" }?.let { mode ->
+                    Spacer(Modifier.width(8.dp))
                     SuggestionChip(onClick = {}, label = { Text(mode) })
                 }
             }
@@ -150,8 +166,12 @@ private fun SessionCard(session: ChargingSession, settings: ServerSettings) {
             LevelBar(start = session.startLevel, end = session.endLevel)
 
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                session.kwh?.let { Metric("${Formatters.number(it, 1)} kWh", "energy") }
-                session.price?.let { Metric(Formatters.money(it, settings.currency), "cost") }
+                session.energy?.let {
+                    Metric("${Formatters.number(it, 1)} kWh", if (session.meteredKwh != null) "billed" else "energy")
+                }
+                session.price?.let {
+                    Metric(Formatters.money(it, settings.currency), if (session.priceManual) "paid" else "est. cost")
+                }
                 session.co2?.takeIf { it > 0 }?.let { Metric("${it.toInt()} g", "CO₂/kWh") }
             }
         }

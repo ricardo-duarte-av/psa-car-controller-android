@@ -58,9 +58,37 @@ data class ChargingSession(
     val co2: Double?,
     val mode: String?,
     val odometer: Double?,
+    val place: ChargePlace = ChargePlace.Home,
+    /** The kWh the charger billed, set by hand; [kwh] is PSACC's estimate from the battery levels. */
+    val meteredKwh: Double? = null,
+    /** [price] was set by hand rather than estimated. */
+    val priceManual: Boolean = false,
 ) {
     val duration: Duration? get() = if (startAt != null && stopAt != null) Duration.between(startAt, stopAt) else null
     val inProgress: Boolean get() = stopAt == null
+
+    /** The best known energy: the charger's when set by hand, else the estimate. */
+    val energy: Double? get() = meteredKwh ?: kwh
+    val edited: Boolean get() = priceManual || meteredKwh != null
+}
+
+/** What can be set by hand on a finished session; a null [price] goes back to PSACC's estimate. */
+data class ChargingSessionEdit(
+    val place: ChargePlace,
+    val meteredKwh: Double?,
+    val price: Double?,
+)
+
+/** Where a charge happened, set by hand; a session is at [Home] until told otherwise. */
+enum class ChargePlace(val apiValue: String, val label: String) {
+    Home("home", "Home"),
+    Work("work", "Work"),
+    Public("public", "Public"),
+    ;
+
+    companion object {
+        fun fromApi(value: String?): ChargePlace = entries.firstOrNull { it.apiValue == value } ?: Home
+    }
 }
 
 /** Display-relevant parts of PSACC's config.ini. */

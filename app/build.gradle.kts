@@ -25,8 +25,8 @@ android {
         applicationId = "pt.aguiarvieira.psacc"
         minSdk = 29
         targetSdk = 37
-        versionCode = 22
-        versionName = "0.1.27"
+        versionCode = 23
+        versionName = "0.1.28"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

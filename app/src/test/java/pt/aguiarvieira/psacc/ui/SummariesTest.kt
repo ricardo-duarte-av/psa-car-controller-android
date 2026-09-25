@@ -9,6 +9,7 @@ import pt.aguiarvieira.psacc.domain.model.ChargingSession
 import pt.aguiarvieira.psacc.domain.model.LatLng
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.ui.feature.charging.ChargingViewModel
+import pt.aguiarvieira.psacc.ui.feature.charging.parseAmount
 import pt.aguiarvieira.psacc.ui.feature.trips.TripsViewModel
 import java.time.Instant
 import java.time.ZoneOffset
@@ -57,5 +58,25 @@ class SummariesTest {
         assertEquals(12.5, summary.totalKwh, 1e-9)
         assertNull(summary.totalCost)
         assertNull(ChargingViewModel.summarize(emptyList()))
+    }
+
+    @Test
+    fun `charging summary counts the billed energy when set`() {
+        val sessions = listOf(
+            ChargingSession(null, null, 8.0, 100.0, 10.58, 10.26, null, "Slow", null, meteredKwh = 8.67, priceManual = true),
+            ChargingSession(null, null, 5.0, 100.0, 10.9, 1.83, null, "Slow", null),
+        )
+        val summary = ChargingViewModel.summarize(sessions)!!
+        assertEquals(19.57, summary.totalKwh, 1e-9)
+        assertEquals(12.09, summary.totalCost!!, 1e-9)
+    }
+
+    @Test
+    fun `an amount is blank, a positive number or invalid`() {
+        assertNull(parseAmount("  "))
+        assertEquals(10.26, parseAmount("10,26")!!, 0.0)
+        assertEquals(8.67, parseAmount(" 8.67 ")!!, 0.0)
+        assertTrue(parseAmount("-1")!!.isNaN())
+        assertTrue(parseAmount("abc")!!.isNaN())
     }
 }

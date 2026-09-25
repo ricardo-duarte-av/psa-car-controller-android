@@ -9,12 +9,14 @@ import pt.aguiarvieira.psacc.domain.model.PsaccEvent
 import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
+import pt.aguiarvieira.psacc.domain.model.ChargingSessionEdit
 import pt.aguiarvieira.psacc.domain.model.HourMinute
 import pt.aguiarvieira.psacc.domain.model.Maintenance
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.domain.model.Vehicle
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
+import java.time.Instant
 
 interface VehicleRepository {
     /** Vehicles known to PSACC; empty until [refreshVehicles] succeeds. */
@@ -85,4 +87,7 @@ interface VehicleRepository {
     /** Absolute URLs (on the daemon) of the car's pictures; empty when the server serves none. */
     suspend fun pictures(vin: String): Result<List<String>>
     suspend fun chargingSessions(vin: String): Result<List<ChargingSession>>
+
+    /** Saves what was set by hand on a finished session (fork 0.1.28 on) and returns the session as saved. */
+    suspend fun editChargingSession(vin: String, startAt: Instant, edit: ChargingSessionEdit): Result<ChargingSession>
 }

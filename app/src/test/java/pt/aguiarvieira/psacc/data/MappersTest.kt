@@ -12,6 +12,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import pt.aguiarvieira.psacc.data.network.PsaccException
+import pt.aguiarvieira.psacc.data.network.dto.ChargingSessionDto
 import pt.aguiarvieira.psacc.data.network.dto.MaintenanceDto
 import pt.aguiarvieira.psacc.data.network.dto.PsaTripDto
 import pt.aguiarvieira.psacc.data.network.dto.ServerSettingsDto
@@ -22,7 +23,10 @@ import pt.aguiarvieira.psacc.data.repository.lockStateOf
 import pt.aguiarvieira.psacc.data.repository.parseChargeControl
 import pt.aguiarvieira.psacc.data.repository.requireCommandSuccess
 import pt.aguiarvieira.psacc.data.repository.toDomain
+import pt.aguiarvieira.psacc.data.repository.toJson
+import pt.aguiarvieira.psacc.domain.model.ChargePlace
 import pt.aguiarvieira.psacc.domain.model.ChargeStatus
+import pt.aguiarvieira.psacc.domain.model.ChargingSessionEdit
 import pt.aguiarvieira.psacc.domain.model.DoorLockState
 import pt.aguiarvieira.psacc.domain.model.HourMinute
 import java.time.Duration
@@ -283,5 +287,36 @@ class MappersTest {
         }
         assertEquals("Wakeup rate limit exceeded", e.message)
         assertThrows(PsaccException.Server::class.java) { requireCommandSuccess(JsonPrimitive(false)) }
+    }
+
+    @Test
+    fun `a charging session carries what was set by hand`() {
+        val json = """[{"start_at": "Thu, 25 Sep 2026 08:32:30 GMT", "stop_at": "Thu, 25 Sep 2026 11:17:26 GMT",
+            "kw": 10.58, "price": 10.26, "place": "public", "metered_kw": 8.67, "price_manual": true},
+            {"start_at": "Tue, 23 Sep 2026 09:49:14 GMT", "kw": 10.9, "price": 1.83}]"""
+        val (edited, stock) = Fixtures.json.decodeFromString(ListSerializer(ChargingSessionDto.serializer()), json)
+            .map { it.toDomain() }
+
+        assertEquals(ChargePlace.Public, edited.place)
+        assertEquals(8.67, edited.energy!!, 0.0)
+        assertTrue(edited.priceManual && edited.edited)
+        // a stock daemon, or a session never edited: home, estimated
+        assertEquals(ChargePlace.Home, stock.place)
+        assertEquals(10.9, stock.energy!!, 0.0)
+        assertFalse(stock.priceManual || stock.edited)
+    }
+
+    @Test
+    fun `an edit sends every key, a null clearing it`() {
+        val body = ChargingSessionEdit(ChargePlace.Work, null, 10.26).toJson(Instant.parse("2026-09-25T08:32:30Z"))
+        assertEquals(
+            buildJsonObject {
+                put("start_at", "2026-09-25T08:32:30Z")
+                put("place", "work")
+                put("metered_kw", JsonNull)
+                put("price", 10.26)
+            },
+            body,
+        )
     }
 }

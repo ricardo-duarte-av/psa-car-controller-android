@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pt.aguiarvieira.psacc.data.repository.VehicleRepository
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
+import pt.aguiarvieira.psacc.domain.model.ChargingSessionEdit
 import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.ui.components.ContentState
 import pt.aguiarvieira.psacc.ui.components.userMessage
@@ -26,6 +27,14 @@ data class ChargingUiState(
     val summary: ChargingSummary? = null,
     val refreshing: Boolean = false,
     val settings: ServerSettings = ServerSettings.Default,
+    val edit: SessionEditState? = null,
+)
+
+/** The session being edited by hand, while its sheet is open. */
+data class SessionEditState(
+    val session: ChargingSession,
+    val saving: Boolean = false,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -57,6 +66,40 @@ class ChargingViewModel @Inject constructor(
         load(initial = true)
     }
 
+    /** Opens the edit sheet; a session still in progress can't be edited. */
+    fun startEdit(session: ChargingSession) {
+        if (session.inProgress || session.startAt == null) return
+        content.update { it.copy(edit = SessionEditState(session)) }
+    }
+
+    fun dismissEdit() {
+        content.update { if (it.edit?.saving == true) it else it.copy(edit = null) }
+    }
+
+    fun saveEdit(edit: ChargingSessionEdit) {
+        val vin = vin ?: return
+        val session = content.value.edit?.takeIf { !it.saving }?.session ?: return
+        val startAt = session.startAt ?: return
+        content.update { it.copy(edit = it.edit?.copy(saving = true, error = null)) }
+        viewModelScope.launch {
+            repository.editChargingSession(vin, startAt, edit)
+                .onSuccess { saved ->
+                    content.update {
+                        val sessions = (it.sessions as? ContentState.Data)?.value
+                            ?.map { s -> if (s.startAt == saved.startAt) saved else s }
+                        if (sessions == null) {
+                            it.copy(edit = null)
+                        } else {
+                            it.copy(sessions = ContentState.Data(sessions), summary = summarize(sessions), edit = null)
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    content.update { it.copy(edit = it.edit?.copy(saving = false, error = e.userMessage())) }
+                }
+        }
+    }
+
     private fun load(initial: Boolean) {
         val vin = vin ?: return
         if (!initial) content.update { it.copy(refreshing = true) }
@@ -84,7 +127,7 @@ class ChargingViewModel @Inject constructor(
             val priced = sessions.mapNotNull { it.price }
             return ChargingSummary(
                 count = sessions.size,
-                totalKwh = sessions.sumOf { it.kwh ?: 0.0 },
+                totalKwh = sessions.sumOf { it.energy ?: 0.0 },
                 totalCost = if (priced.isEmpty()) null else priced.sum(),
             )
         }

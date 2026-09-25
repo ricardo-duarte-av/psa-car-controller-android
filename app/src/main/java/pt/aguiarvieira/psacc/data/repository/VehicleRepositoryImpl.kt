@@ -38,6 +38,7 @@ import pt.aguiarvieira.psacc.data.settings.AppPreferences
 import pt.aguiarvieira.psacc.domain.model.CarCommand
 import pt.aguiarvieira.psacc.domain.model.ChargeControlSettings
 import pt.aguiarvieira.psacc.domain.model.ChargingSession
+import pt.aguiarvieira.psacc.domain.model.ChargingSessionEdit
 import pt.aguiarvieira.psacc.domain.model.CommandOutcome
 import pt.aguiarvieira.psacc.domain.model.PsaccEvent
 import pt.aguiarvieira.psacc.domain.model.ServerCapabilities
@@ -47,6 +48,7 @@ import pt.aguiarvieira.psacc.domain.model.ServerSettings
 import pt.aguiarvieira.psacc.domain.model.Trip
 import pt.aguiarvieira.psacc.domain.model.Vehicle
 import pt.aguiarvieira.psacc.domain.model.VehicleStatus
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -241,6 +243,23 @@ class VehicleRepositoryImpl @Inject constructor(
             .filter { it.vin == null || it.vin == vin }
             .map { it.toDomain() }
             .sortedByDescending { it.startAt }
+    }
+
+    override suspend fun editChargingSession(
+        vin: String,
+        startAt: Instant,
+        edit: ChargingSessionEdit,
+    ): Result<ChargingSession> = call {
+        try {
+            client.patch(config(), ChargingSessionDto.serializer(), listOf("vehicles", vin, "chargings"), edit.toJson(startAt))
+                .toDomain()
+        } catch (e: PsaccException.Http) {
+            // a daemon without the route answers its 404 (or 405) page, not a json error
+            if (e.code == 404 || e.code == 405) {
+                throw PsaccException.Server("Editing sessions needs PSA Car Controller 0.1.28 or later.")
+            }
+            throw e
+        }
     }
 
     private suspend fun chargeControlCall(vin: String, params: Map<String, String>) = call {
